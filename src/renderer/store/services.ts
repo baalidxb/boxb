@@ -3,6 +3,31 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { ipcStorage } from './storage';
 import type { Workspace } from '@shared/types';
 
+// Multi-window state sync. Each renderer broadcasts the GLOBAL slice
+// (workspaces, services) after every global mutation. Other windows apply
+// the snapshot via applyBroadcastSnapshot under a re-entry guard so the
+// applied set doesn't echo back. Per-window state (activeWorkspaceId,
+// activeServiceId, modal flags) does NOT broadcast.
+let isApplyingBroadcast = false;
+
+interface GlobalSnapshot {
+  workspaces: Workspace[];
+  services: Service[];
+}
+
+function broadcastGlobals(snapshot: GlobalSnapshot): void {
+  if (isApplyingBroadcast) return;
+  if (typeof window === 'undefined') return;
+  const api = window.boxb?.window;
+  if (!api?.broadcast) return;
+  try {
+    api.broadcast(snapshot);
+  } catch {
+    // best effort; broadcast is not load-bearing for correctness in a
+    // single-window session.
+  }
+}
+
 // Renderer-side dedupe of registerPartition IPCs. Both addService (fired
 // when a tile is created via the modal) and ServiceWebView's dom-ready
 // handler (fired when the page reaches DOM-ready, including for persisted
@@ -77,6 +102,12 @@ interface ServicesState {
 
   workspaces: Workspace[];
   activeWorkspaceId: string;
+  // Per-window lock. If non-null, this window is sealed to that workspace:
+  // workspace pills are hidden, switching is rejected, and if the workspace
+  // is deleted we force-close the window. Set ONCE on mount via
+  // initLockedWorkspace from the main-process additionalArguments. Never
+  // broadcast, never persisted.
+  lockedWorkspaceId: string | null;
   isAddWorkspaceModalOpen: boolean;
   renameWorkspaceFor: string | null;
   confirmDeleteWorkspaceFor: string | null;
@@ -102,6 +133,7 @@ interface ServicesState {
   setActiveWorkspace: (id: string) => void;
   moveServiceToWorkspace: (serviceId: string, workspaceId: string) => void;
   cycleWorkspace: (direction: 1 | -1) => void;
+  initLockedWorkspace: (id: string) => void;
 
   openAddWorkspaceModal: () => void;
   closeAddWorkspaceModal: () => void;
@@ -134,6 +166,7 @@ export const useServicesStore = create<ServicesState>()(
 
       workspaces: [],
       activeWorkspaceId: '',
+      lockedWorkspaceId: null,
       isAddWorkspaceModalOpen: false,
       renameWorkspaceFor: null,
       confirmDeleteWorkspaceFor: null,
@@ -155,18 +188,24 @@ export const useServicesStore = create<ServicesState>()(
         // attached before the webview attaches. Deduped via the module-level
         // Set so dom-ready won't re-fire it.
         registerPartitionOnce(next.partition);
+        const s = get();
+        broadcastGlobals({ workspaces: s.workspaces, services: s.services });
         return id;
       },
 
-      removeService: (id) =>
+      removeService: (id) => {
         set((state) => ({
           services: state.services.filter((s) => s.id !== id),
           activeServiceId: state.activeServiceId === id ? null : state.activeServiceId
-        })),
+        }));
+        const s = get();
+        broadcastGlobals({ workspaces: s.workspaces, services: s.services });
+      },
 
       setActiveService: (id) => set({ activeServiceId: id }),
 
-      reorderServices: (fromIndex, toIndex) =>
+      reorderServices: (fromIndex, toIndex) => {
+        let changed = false;
         set((state) => {
           if (fromIndex === toIndex) return state;
           if (fromIndex < 0 || fromIndex >= state.services.length) return state;
@@ -175,8 +214,14 @@ export const useServicesStore = create<ServicesState>()(
           const moved = next.splice(fromIndex, 1)[0];
           if (!moved) return state;
           next.splice(toIndex, 0, moved);
+          changed = true;
           return { services: next };
-        }),
+        });
+        if (changed) {
+          const s = get();
+          broadcastGlobals({ workspaces: s.workspaces, services: s.services });
+        }
+      },
 
       setUnreadCount: (id, count) => {
         const state = get();
@@ -198,6 +243,8 @@ export const useServicesStore = create<ServicesState>()(
             s.id === id ? { ...s, unreadCount: count } : s
           )
         });
+        const s = get();
+        broadcastGlobals({ workspaces: s.workspaces, services: s.services });
       },
 
       openAddModal: () => set({ isAddModalOpen: true }),
@@ -256,6 +303,8 @@ export const useServicesStore = create<ServicesState>()(
           createdAt: Date.now()
         };
         set({ workspaces: [...state.workspaces, ws] });
+        const s = get();
+        broadcastGlobals({ workspaces: s.workspaces, services: s.services });
         return id;
       },
 
@@ -274,6 +323,8 @@ export const useServicesStore = create<ServicesState>()(
               : w
           )
         }));
+        const s = get();
+        broadcastGlobals({ workspaces: s.workspaces, services: s.services });
       },
 
       deleteWorkspace: (id) => {
@@ -304,9 +355,11 @@ export const useServicesStore = create<ServicesState>()(
           renameWorkspaceFor: null,
           workspaceContextMenu: null
         });
+        const s = get();
+        broadcastGlobals({ workspaces: s.workspaces, services: s.services });
       },
 
-      reorderWorkspaces: (orderedIds) =>
+      reorderWorkspaces: (orderedIds) => {
         set((state) => {
           const indexById = new Map<string, number>();
           orderedIds.forEach((id, i) => indexById.set(id, i));
@@ -315,10 +368,15 @@ export const useServicesStore = create<ServicesState>()(
             return typeof idx === 'number' ? { ...w, order: idx } : w;
           });
           return { workspaces: updated };
-        }),
+        });
+        const s = get();
+        broadcastGlobals({ workspaces: s.workspaces, services: s.services });
+      },
 
       setActiveWorkspace: (id) => {
         const state = get();
+        // Locked windows can't switch away from their workspace.
+        if (state.lockedWorkspaceId && id !== state.lockedWorkspaceId) return;
         if (id === state.activeWorkspaceId) return;
         // Preserve activeServiceId only if the active service belongs to the
         // new workspace; otherwise clear so the user sees the empty state.
@@ -327,15 +385,19 @@ export const useServicesStore = create<ServicesState>()(
         set({ activeWorkspaceId: id, activeServiceId: keep ? state.activeServiceId : null });
       },
 
-      moveServiceToWorkspace: (serviceId, workspaceId) =>
+      moveServiceToWorkspace: (serviceId, workspaceId) => {
         set((state) => ({
           services: state.services.map((s) =>
             s.id === serviceId ? { ...s, workspaceId } : s
           )
-        })),
+        }));
+        const s = get();
+        broadcastGlobals({ workspaces: s.workspaces, services: s.services });
+      },
 
       cycleWorkspace: (direction) => {
         const state = get();
+        if (state.lockedWorkspaceId) return;
         const ordered = sortedByOrder(state.workspaces);
         if (ordered.length === 0) return;
         const idx = ordered.findIndex((w) => w.id === state.activeWorkspaceId);
@@ -345,6 +407,27 @@ export const useServicesStore = create<ServicesState>()(
             : (idx + direction + ordered.length) % ordered.length;
         const nextWs = ordered[nextIdx];
         if (nextWs) get().setActiveWorkspace(nextWs.id);
+      },
+
+      initLockedWorkspace: (id) => {
+        const state = get();
+        if (state.lockedWorkspaceId) return; // Sealed once at startup.
+        const ws = state.workspaces.find((w) => w.id === id);
+        if (!ws) {
+          // Workspace was deleted between the right-click and this window
+          // mounting. Nothing to lock onto — close ourselves.
+          try {
+            window.boxb.window.forceClose();
+          } catch {
+            // best-effort; the window will at least show empty.
+          }
+          return;
+        }
+        set({
+          lockedWorkspaceId: id,
+          activeWorkspaceId: id,
+          activeServiceId: null
+        });
       },
 
       openAddWorkspaceModal: () => set({ isAddWorkspaceModalOpen: true }),
@@ -371,9 +454,12 @@ export const useServicesStore = create<ServicesState>()(
     {
       name: 'boxb-services',
       storage: createJSONStorage(() => ipcStorage),
+      // activeServiceId is per-window (each window starts at "no active
+      // service" on open). activeWorkspaceId is persisted because it serves
+      // as the seed for new windows opened via Ctrl+N. Modal/context-menu
+      // state is per-window and never persisted.
       partialize: (state) => ({
         services: state.services.map((s) => ({ ...s, unreadCount: 0 })),
-        activeServiceId: state.activeServiceId,
         workspaces: state.workspaces,
         activeWorkspaceId: state.activeWorkspaceId
       })
@@ -414,6 +500,61 @@ export function ensureWorkspacesInitialized(): void {
     : main.id;
 
   useServicesStore.setState({ workspaces, services, activeWorkspaceId });
+}
+
+// Applies a snapshot received from another window. Replaces the global
+// slice (workspaces + services) and reconciles per-window selections so the
+// UI doesn't end up pointing at a now-deleted service or workspace. The
+// re-entry guard prevents the apply from re-broadcasting and looping.
+export function applyBroadcastSnapshot(snapshot: unknown): void {
+  if (!snapshot || typeof snapshot !== 'object') return;
+  const s = snapshot as Partial<GlobalSnapshot>;
+  if (!Array.isArray(s.workspaces) || !Array.isArray(s.services)) return;
+  const incoming: GlobalSnapshot = {
+    workspaces: s.workspaces,
+    services: s.services
+  };
+
+  isApplyingBroadcast = true;
+  let shouldForceClose = false;
+  try {
+    useServicesStore.setState((state) => {
+      const wsIds = new Set(incoming.workspaces.map((w) => w.id));
+      const svcIds = new Set(incoming.services.map((sv) => sv.id));
+      // Locked window whose workspace was just deleted: tear it down.
+      if (state.lockedWorkspaceId && !wsIds.has(state.lockedWorkspaceId)) {
+        shouldForceClose = true;
+      }
+      // For locked windows whose workspace still exists, keep the active
+      // workspace pinned to the lock regardless of incoming state.
+      const activeWorkspaceId = state.lockedWorkspaceId
+        ? wsIds.has(state.lockedWorkspaceId)
+          ? state.lockedWorkspaceId
+          : ''
+        : wsIds.has(state.activeWorkspaceId)
+          ? state.activeWorkspaceId
+          : sortedByOrder(incoming.workspaces)[0]?.id ?? '';
+      const activeServiceId =
+        state.activeServiceId && svcIds.has(state.activeServiceId)
+          ? state.activeServiceId
+          : null;
+      return {
+        workspaces: incoming.workspaces,
+        services: incoming.services,
+        activeWorkspaceId,
+        activeServiceId
+      };
+    });
+  } finally {
+    isApplyingBroadcast = false;
+  }
+  if (shouldForceClose) {
+    try {
+      window.boxb.window.forceClose();
+    } catch {
+      // best-effort
+    }
+  }
 }
 
 if (import.meta.env.DEV) {

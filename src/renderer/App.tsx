@@ -9,7 +9,11 @@ import { ConfirmDeleteWorkspaceModal } from './components/ConfirmDeleteWorkspace
 import { ServiceWebView } from './components/ServiceWebView';
 import { ContextMenu, type ContextMenuItem } from './components/ContextMenu';
 import { ConfirmRemoveModal } from './components/ConfirmRemoveModal';
-import { ensureWorkspacesInitialized, useServicesStore } from './store/services';
+import {
+  applyBroadcastSnapshot,
+  ensureWorkspacesInitialized,
+  useServicesStore
+} from './store/services';
 
 export default function App(): JSX.Element {
   const activeServiceId = useServicesStore((s) => s.activeServiceId);
@@ -28,16 +32,36 @@ export default function App(): JSX.Element {
   const reorderWorkspaces = useServicesStore((s) => s.reorderWorkspaces);
 
   // Run idempotent migration once persistence has hydrated. Creates the
-  // "Main" workspace if missing and assigns it to any orphan services.
+  // "Main" workspace if missing and assigns it to any orphan services. If
+  // this window was launched in locked mode (additionalArguments), seal
+  // the lock right after migration so the activeWorkspaceId reflects it.
   useEffect(() => {
+    const initLocked = (): void => {
+      const lockedId = window.boxb.window.getLockedWorkspaceId();
+      if (lockedId) {
+        useServicesStore.getState().initLockedWorkspace(lockedId);
+      }
+    };
     if (useServicesStore.persist.hasHydrated()) {
       ensureWorkspacesInitialized();
+      initLocked();
       return;
     }
     const unsub = useServicesStore.persist.onFinishHydration(() => {
       ensureWorkspacesInitialized();
+      initLocked();
     });
     return unsub;
+  }, []);
+
+  // Multi-window state sync. Other windows broadcast their globals snapshot
+  // (workspaces + services) here; we apply it under a guard so we don't
+  // echo the apply back. Per-window state (activeWorkspaceId, modal flags)
+  // is never broadcast and stays local.
+  useEffect(() => {
+    return window.boxb.window.onBroadcast((snapshot) => {
+      applyBroadcastSnapshot(snapshot);
+    });
   }, []);
 
   useEffect(() => {
@@ -52,12 +76,20 @@ export default function App(): JSX.Element {
         return;
       }
 
+      if (cmdOrCtrl && !e.shiftKey && (e.key === 'n' || e.key === 'N')) {
+        e.preventDefault();
+        window.boxb.window.openNew();
+        return;
+      }
+
       if (cmdOrCtrl && e.shiftKey && (e.key === ']' || e.key === '}')) {
+        if (state.lockedWorkspaceId) return;
         e.preventDefault();
         state.cycleWorkspace(1);
         return;
       }
       if (cmdOrCtrl && e.shiftKey && (e.key === '[' || e.key === '{')) {
+        if (state.lockedWorkspaceId) return;
         e.preventDefault();
         state.cycleWorkspace(-1);
         return;
@@ -146,6 +178,15 @@ export default function App(): JSX.Element {
     const isLast = idx === ordered.length - 1;
     const isOnly = ordered.length <= 1;
     return [
+      {
+        type: 'item',
+        label: 'Open in new window',
+        onClick: () => {
+          window.boxb.window.openNew(workspaceContextMenu.workspaceId);
+          closeWorkspaceContextMenu();
+        }
+      },
+      { type: 'divider' },
       {
         type: 'item',
         label: 'Rename',

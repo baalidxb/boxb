@@ -9,6 +9,7 @@ export function Sidebar(): JSX.Element {
   const activeServiceId = useServicesStore((s) => s.activeServiceId);
   const workspaces = useServicesStore((s) => s.workspaces);
   const activeWorkspaceId = useServicesStore((s) => s.activeWorkspaceId);
+  const lockedWorkspaceId = useServicesStore((s) => s.lockedWorkspaceId);
   const setActiveWorkspace = useServicesStore((s) => s.setActiveWorkspace);
   const openWorkspaceContextMenu = useServicesStore(
     (s) => s.openWorkspaceContextMenu
@@ -17,6 +18,7 @@ export function Sidebar(): JSX.Element {
   const openAddModal = useServicesStore((s) => s.openAddModal);
   const setActiveService = useServicesStore((s) => s.setActiveService);
 
+  const isLocked = lockedWorkspaceId !== null;
   const orderedWorkspaces = [...workspaces].sort((a, b) => a.order - b.order);
   const visibleServices = services.filter(
     (s) => s.workspaceId === activeWorkspaceId
@@ -42,34 +44,38 @@ export function Sidebar(): JSX.Element {
 
       <div className="border-t-[0.5px] border-t-[#1A1A1A]" />
 
-      <div className="flex flex-col items-center pt-[10px] gap-[10px] shrink-0">
-        {orderedWorkspaces.map((w) => (
-          <WorkspacePill
-            key={w.id}
-            workspace={w}
-            isActive={w.id === activeWorkspaceId}
-            onClick={() => setActiveWorkspace(w.id)}
-            onContextMenu={(x, y) => openWorkspaceContextMenu(w.id, x, y)}
-          />
-        ))}
-        <button
-          type="button"
-          onClick={openAddWorkspaceModal}
-          aria-label="Add workspace"
-          title="Add workspace"
-          className={[
-            'w-8 h-8 rounded-full flex items-center justify-center text-muted shrink-0',
-            'border-[0.5px] border-transparent',
-            'transition-all duration-150 ease-out',
-            'hover:text-accent hover:border-accent',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
-          ].join(' ')}
-        >
-          <PlusIcon size={16} />
-        </button>
-      </div>
+      {!isLocked && (
+        <>
+          <div className="flex flex-col items-center pt-[10px] gap-[10px] shrink-0">
+            {orderedWorkspaces.map((w) => (
+              <WorkspacePill
+                key={w.id}
+                workspace={w}
+                isActive={w.id === activeWorkspaceId}
+                onClick={() => setActiveWorkspace(w.id)}
+                onContextMenu={(x, y) => openWorkspaceContextMenu(w.id, x, y)}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={openAddWorkspaceModal}
+              aria-label="Add workspace"
+              title="Add workspace"
+              className={[
+                'w-8 h-8 rounded-full flex items-center justify-center text-muted shrink-0',
+                'border-[0.5px] border-transparent',
+                'transition-all duration-150 ease-out',
+                'hover:text-accent hover:border-accent',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+              ].join(' ')}
+            >
+              <PlusIcon size={16} />
+            </button>
+          </div>
 
-      <div className="border-t-[0.5px] border-t-[#1A1A1A] mt-[12px]" />
+          <div className="border-t-[0.5px] border-t-[#1A1A1A] mt-[12px]" />
+        </>
+      )}
 
       <div className="overflow-y-auto flex flex-col items-center pt-[12px] gap-[10px] flex-1 min-h-0">
         {visibleServices.map((svc) => (

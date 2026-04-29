@@ -1,5 +1,6 @@
-import { app, BrowserWindow } from 'electron';
+import { app } from 'electron';
 import { createMainWindow, getMainWindow } from './window';
+import { getAllWindows } from './windows';
 import { registerIpcHandlers } from './ipc';
 import { initPermissions } from './permissions';
 import { createTray } from './tray';
@@ -20,18 +21,13 @@ if (!gotLock) {
 } else {
   app.on('second-instance', () => {
     dlog('APP:second-instance');
-    const win = getMainWindow();
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      if (!win.isVisible()) win.show();
-      win.focus();
-    } else {
-      const [existing] = BrowserWindow.getAllWindows();
-      if (existing) {
-        if (existing.isMinimized()) existing.restore();
-        existing.focus();
-      }
+    const all = getAllWindows();
+    for (const w of all) {
+      if (w.isMinimized()) w.restore();
+      if (!w.isVisible()) w.show();
     }
+    const primary = getMainWindow() ?? all[0];
+    if (primary) primary.focus();
   });
 
   app.on('before-quit', () => {
@@ -101,13 +97,16 @@ if (!gotLock) {
 
     app.on('activate', () => {
       dlog('APP:activate');
-      const win = getMainWindow();
-      if (win) {
-        if (!win.isVisible()) win.show();
-        win.focus();
-      } else if (BrowserWindow.getAllWindows().length === 0) {
+      const all = getAllWindows();
+      if (all.length === 0) {
         createMainWindow();
+        return;
       }
+      for (const w of all) {
+        if (!w.isVisible()) w.show();
+      }
+      const primary = getMainWindow() ?? all[0];
+      if (primary) primary.focus();
     });
   });
 

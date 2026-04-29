@@ -15,6 +15,12 @@ export const IPC = Object.freeze({
     webviewPreloadPath: 'service:webview-preload-path',
     webviewNotificationClick: 'service:webview-notification-click',
     notificationClick: 'service:notification-click'
+  },
+  window: {
+    openNew: 'window:open-new',
+    broadcast: 'window:broadcast',
+    applyBroadcast: 'window:apply-broadcast',
+    forceClose: 'window:force-close'
   }
 });
 

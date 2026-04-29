@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, Tray, nativeImage } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { lifecycle } from './lifecycle';
+import { getAllWindows } from './windows';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -13,15 +14,23 @@ function resolveTrayIconPath(): string {
   return fromBuilt;
 }
 
-function toggleWindow(getWindow: () => BrowserWindow | null): void {
-  const win = getWindow();
-  if (!win) return;
-  if (win.isVisible() && !win.isMinimized()) {
-    win.hide();
+function showAllWindows(getPrimary: () => BrowserWindow | null): void {
+  const all = getAllWindows();
+  for (const w of all) {
+    if (w.isMinimized()) w.restore();
+    if (!w.isVisible()) w.show();
+  }
+  const primary = getPrimary() ?? all[0] ?? null;
+  if (primary) primary.focus();
+}
+
+function toggleWindow(getPrimary: () => BrowserWindow | null): void {
+  const all = getAllWindows();
+  const anyVisible = all.some((w) => w.isVisible() && !w.isMinimized());
+  if (anyVisible) {
+    for (const w of all) w.hide();
   } else {
-    if (win.isMinimized()) win.restore();
-    win.show();
-    win.focus();
+    showAllWindows(getPrimary);
   }
 }
 
@@ -34,13 +43,7 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray | null {
     const menu = Menu.buildFromTemplate([
       {
         label: 'Show BoxB',
-        click: () => {
-          const win = getWindow();
-          if (!win) return;
-          if (win.isMinimized()) win.restore();
-          win.show();
-          win.focus();
-        }
+        click: () => showAllWindows(getWindow)
       },
       {
         label: 'Settings',

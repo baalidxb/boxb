@@ -1,9 +1,11 @@
-import { app, ipcMain, session } from 'electron';
+import { app, BrowserWindow, ipcMain, session } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { IPC } from '@shared/ipc';
 import { ElectronStoreAdapter } from '../storage/electron-store-adapter';
 import { dlog } from '../debug-log';
+import { createSecondaryWindow } from '../window';
+import { getAllWindows } from '../windows';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -42,6 +44,50 @@ export function registerIpcHandlers(): ElectronStoreAdapter {
     const p = join(__dirname, '..', 'preload', 'webview.cjs');
     dlog('IPC:webview-preload-path:returned', { path: p });
     return p;
+  });
+
+  ipcMain.on(IPC.window.openNew, (event, lockedWorkspaceId?: unknown) => {
+    const lockedId =
+      typeof lockedWorkspaceId === 'string' && lockedWorkspaceId.length > 0
+        ? lockedWorkspaceId
+        : undefined;
+    dlog('IPC:window-open-new', {
+      senderId: event.sender.id,
+      lockedWorkspaceId: lockedId ?? null
+    });
+    createSecondaryWindow(lockedId ? { lockedWorkspaceId: lockedId } : undefined);
+  });
+
+  // Force-destroys the sender's window without firing the hide-to-tray
+  // close handler. Used when a locked window's workspace gets deleted.
+  ipcMain.on(IPC.window.forceClose, (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    dlog('IPC:window-force-close', {
+      senderId: event.sender.id,
+      found: !!win
+    });
+    if (win && !win.isDestroyed()) win.destroy();
+  });
+
+  // Broadcasts a globals snapshot from one renderer to every other window.
+  // Sender is excluded so it doesn't reapply its own update. Receivers
+  // guard against re-broadcast via an isApplyingBroadcast flag.
+  ipcMain.on(IPC.window.broadcast, (event, snapshot: unknown) => {
+    const senderId = event.sender.id;
+    let recipients = 0;
+    for (const win of getAllWindows()) {
+      if (win.webContents.id === senderId) continue;
+      try {
+        win.webContents.send(IPC.window.applyBroadcast, snapshot);
+        recipients++;
+      } catch (e) {
+        dlog('IPC:window-broadcast:send-failed', {
+          target: win.webContents.id,
+          error: e instanceof Error ? e.message : String(e)
+        });
+      }
+    }
+    dlog('IPC:window-broadcast', { senderId, recipients });
   });
 
   return storage;

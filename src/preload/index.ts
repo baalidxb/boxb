@@ -2,6 +2,22 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcRendererEvent } from 'electron';
 import { IPC } from '@shared/ipc';
 
+const LOCKED_WORKSPACE_FLAG = '--locked-workspace-id=';
+
+function readLockedWorkspaceId(): string | null {
+  // additionalArguments from BrowserWindow.webPreferences land in process.argv
+  // of this preload's renderer process. We pass --locked-workspace-id=<uuid>
+  // when the main process spawns a window in locked mode.
+  for (const arg of process.argv) {
+    if (typeof arg === 'string' && arg.startsWith(LOCKED_WORKSPACE_FLAG)) {
+      return arg.slice(LOCKED_WORKSPACE_FLAG.length) || null;
+    }
+  }
+  return null;
+}
+
+const lockedWorkspaceId = readLockedWorkspaceId();
+
 const api = {
   app: {
     version: (): Promise<string> => ipcRenderer.invoke(IPC.app.version)
@@ -31,6 +47,24 @@ const api = {
         handler(payload);
       ipcRenderer.on(IPC.service.notificationClick, wrapped);
       return () => ipcRenderer.removeListener(IPC.service.notificationClick, wrapped);
+    }
+  },
+  window: {
+    openNew: (lockedWorkspaceIdArg?: string): void => {
+      ipcRenderer.send(IPC.window.openNew, lockedWorkspaceIdArg);
+    },
+    broadcast: (snapshot: unknown): void => {
+      ipcRenderer.send(IPC.window.broadcast, snapshot);
+    },
+    onBroadcast: (handler: (snapshot: unknown) => void): (() => void) => {
+      const wrapped = (_e: IpcRendererEvent, snapshot: unknown): void =>
+        handler(snapshot);
+      ipcRenderer.on(IPC.window.applyBroadcast, wrapped);
+      return () => ipcRenderer.removeListener(IPC.window.applyBroadcast, wrapped);
+    },
+    getLockedWorkspaceId: (): string | null => lockedWorkspaceId,
+    forceClose: (): void => {
+      ipcRenderer.send(IPC.window.forceClose);
     }
   }
 } as const;

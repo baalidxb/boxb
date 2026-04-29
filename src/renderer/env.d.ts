@@ -45,6 +45,13 @@ declare global {
       notification: {
         onClick: (handler: (payload: { partition: string }) => void) => () => void;
       };
+      window: {
+        openNew: (lockedWorkspaceId?: string) => void;
+        broadcast: (snapshot: unknown) => void;
+        onBroadcast: (handler: (snapshot: unknown) => void) => () => void;
+        getLockedWorkspaceId: () => string | null;
+        forceClose: () => void;
+      };
     };
   }
 }
