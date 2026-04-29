@@ -1,0 +1,143 @@
+import type { CatalogApp } from '@shared/catalog';
+
+// Phase 3.5 (deferred): Microsoft Teams (UA gating), Signal (no real web app),
+// Instagram & Facebook (anti-embedded-browser detection), Outlook (Microsoft
+// anti-bot on consumer outlook.live.com).
+
+const CHROME_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+export const catalog: CatalogApp[] = [
+  {
+    id: 'whatsapp-web',
+    name: 'WhatsApp Web',
+    url: 'https://web.whatsapp.com',
+    iconUrl: '/icons/whatsapp-web.svg',
+    category: 'messaging',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'whatsapp-business',
+    name: 'WhatsApp Business',
+    url: 'https://web.whatsapp.com',
+    iconUrl: '/icons/whatsapp-business.svg',
+    category: 'messaging',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'telegram-web',
+    name: 'Telegram Web',
+    url: 'https://web.telegram.org/k/',
+    iconUrl: '/icons/telegram-web.svg',
+    category: 'messaging'
+  },
+  {
+    id: 'messenger',
+    name: 'Messenger',
+    url: 'https://www.messenger.com',
+    iconUrl: '/icons/messenger.svg',
+    category: 'messaging',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'gmail',
+    name: 'Gmail',
+    url: 'https://mail.google.com',
+    iconUrl: '/icons/gmail.svg',
+    category: 'email',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'google-docs',
+    name: 'Google Docs',
+    url: 'https://docs.google.com',
+    iconUrl: '/icons/google-docs.svg',
+    category: 'productivity',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'google-sheets',
+    name: 'Google Sheets',
+    url: 'https://sheets.google.com',
+    iconUrl: '/icons/google-sheets.svg',
+    category: 'productivity',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'google-drive',
+    name: 'Google Drive',
+    url: 'https://drive.google.com',
+    iconUrl: '/icons/google-drive.svg',
+    category: 'productivity',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'notion',
+    name: 'Notion',
+    url: 'https://www.notion.so',
+    iconUrl: '/icons/notion.svg',
+    category: 'productivity',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'trello',
+    name: 'Trello',
+    url: 'https://trello.com',
+    iconUrl: '/icons/trello.svg',
+    category: 'productivity',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'google-keep',
+    name: 'Google Keep',
+    url: 'https://keep.google.com',
+    iconUrl: '/icons/google-keep.svg',
+    category: 'productivity',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'slack',
+    name: 'Slack',
+    url: 'https://app.slack.com/client',
+    iconUrl: '/icons/slack.svg',
+    category: 'work',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'discord',
+    name: 'Discord',
+    url: 'https://discord.com/app',
+    iconUrl: '/icons/discord.svg',
+    category: 'work',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'chatgpt',
+    name: 'ChatGPT',
+    url: 'https://chat.openai.com',
+    iconUrl: '/icons/chatgpt.svg',
+    category: 'ai'
+  },
+  {
+    id: 'claude',
+    name: 'Claude',
+    url: 'https://claude.ai',
+    iconUrl: '/icons/claude.svg',
+    category: 'ai'
+  },
+  {
+    id: 'gemini',
+    name: 'Gemini',
+    url: 'https://gemini.google.com',
+    iconUrl: '/icons/gemini.svg',
+    category: 'ai',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'perplexity',
+    name: 'Perplexity',
+    url: 'https://www.perplexity.ai',
+    iconUrl: '/icons/perplexity.svg',
+    category: 'ai'
+  }
+];

@@ -1,0 +1,26 @@
+appId: app.boxb
+productName: BoxB
+directories:
+  output: release
+  buildResources: resources
+files:
+  - out/**
+  - package.json
+asar: true
+publish: null
+win:
+  target: nsis
+  icon: resources/icon.ico
+mac:
+  target: dmg
+  icon: resources/icon.icns
+  category: public.app-category.social-networking
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: resources/icon.png
+  category: Network
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

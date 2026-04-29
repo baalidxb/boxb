@@ -1,0 +1,15 @@
+node_modules/
+out/
+release/
+.vite/
+.DS_Store
+*.log
+.env
+.env.local
+.env.*.local
+
+# Local-only Claude Code permissions (machine-specific)
+.claude/settings.local.json
+
+# Generated brand icons (built from simple-icons via npm run generate-icons)
+src/renderer/public/icons/*.svg

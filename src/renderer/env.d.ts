@@ -1,0 +1,42 @@
+/// <reference types="vite/client" />
+
+import type { DetailedHTMLProps, HTMLAttributes } from 'react';
+
+interface WebviewAttributes {
+  src?: string;
+  partition?: string;
+  useragent?: string;
+  allowpopups?: string;
+  preload?: string;
+  httpreferrer?: string;
+}
+
+declare module 'react' {
+  namespace JSX {
+    interface IntrinsicElements {
+      webview: DetailedHTMLProps<
+        HTMLAttributes<HTMLElement> & WebviewAttributes,
+        HTMLElement
+      >;
+    }
+  }
+}
+
+declare global {
+  interface Window {
+    boxb: {
+      app: {
+        version: () => Promise<string>;
+      };
+      storage: {
+        get<T = unknown>(key: string): Promise<T | undefined>;
+        set<T = unknown>(key: string, value: T): Promise<void>;
+        delete(key: string): Promise<void>;
+        getAll(): Promise<Record<string, unknown>>;
+        clear(): Promise<void>;
+      };
+    };
+  }
+}
+
+export {};
