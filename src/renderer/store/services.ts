@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { ipcStorage } from './storage';
+import type { Workspace } from '@shared/types';
 
 // Renderer-side dedupe of registerPartition IPCs. Both addService (fired
 // when a tile is created via the modal) and ServiceWebView's dom-ready
@@ -30,11 +31,12 @@ export interface Service {
   unreadCount: number;
   isMuted: boolean;
   addedAt: number;
+  workspaceId: string;
 }
 
 type NewServiceInput = Omit<
   Service,
-  'id' | 'partition' | 'unreadCount' | 'isMuted' | 'addedAt'
+  'id' | 'partition' | 'unreadCount' | 'isMuted' | 'addedAt' | 'workspaceId'
 >;
 
 interface ContextMenuTarget {
@@ -43,12 +45,42 @@ interface ContextMenuTarget {
   y: number;
 }
 
+interface WorkspaceContextMenuTarget {
+  workspaceId: string;
+  x: number;
+  y: number;
+}
+
+export const MAX_WORKSPACES = 10;
+export const WORKSPACE_NAME_RE = /^[A-Za-z0-9]{1,10}$/;
+export const WORKSPACE_ICON_RE = /^[A-Za-z0-9]$/;
+
+export function isValidWorkspaceName(s: string): boolean {
+  return WORKSPACE_NAME_RE.test(s);
+}
+
+export function isValidWorkspaceIcon(s: string): boolean {
+  return s === '' || WORKSPACE_ICON_RE.test(s);
+}
+
+export function workspaceDisplayChar(w: Workspace): string {
+  if (w.icon) return w.icon;
+  return w.name.charAt(0).toUpperCase();
+}
+
 interface ServicesState {
   services: Service[];
   activeServiceId: string | null;
   isAddModalOpen: boolean;
   contextMenu: ContextMenuTarget | null;
   confirmRemoveFor: string | null;
+
+  workspaces: Workspace[];
+  activeWorkspaceId: string;
+  isAddWorkspaceModalOpen: boolean;
+  renameWorkspaceFor: string | null;
+  confirmDeleteWorkspaceFor: string | null;
+  workspaceContextMenu: WorkspaceContextMenuTarget | null;
 
   addService: (svc: NewServiceInput) => string;
   removeService: (id: string) => void;
@@ -62,6 +94,33 @@ interface ServicesState {
   requestRemove: (serviceId: string) => void;
   cancelRemove: () => void;
   confirmRemove: () => Promise<void>;
+
+  addWorkspace: (name: string, icon?: string) => string;
+  renameWorkspace: (id: string, name: string, icon?: string) => void;
+  deleteWorkspace: (id: string) => void;
+  reorderWorkspaces: (orderedIds: string[]) => void;
+  setActiveWorkspace: (id: string) => void;
+  moveServiceToWorkspace: (serviceId: string, workspaceId: string) => void;
+  cycleWorkspace: (direction: 1 | -1) => void;
+
+  openAddWorkspaceModal: () => void;
+  closeAddWorkspaceModal: () => void;
+  openRenameWorkspace: (id: string) => void;
+  closeRenameWorkspace: () => void;
+  requestDeleteWorkspace: (id: string) => void;
+  cancelDeleteWorkspace: () => void;
+  confirmDeleteWorkspace: () => void;
+  openWorkspaceContextMenu: (workspaceId: string, x: number, y: number) => void;
+  closeWorkspaceContextMenu: () => void;
+}
+
+function nextWorkspaceOrder(workspaces: Workspace[]): number {
+  if (workspaces.length === 0) return 0;
+  return Math.max(...workspaces.map((w) => w.order)) + 1;
+}
+
+function sortedByOrder(workspaces: Workspace[]): Workspace[] {
+  return [...workspaces].sort((a, b) => a.order - b.order);
 }
 
 export const useServicesStore = create<ServicesState>()(
@@ -73,6 +132,13 @@ export const useServicesStore = create<ServicesState>()(
       contextMenu: null,
       confirmRemoveFor: null,
 
+      workspaces: [],
+      activeWorkspaceId: '',
+      isAddWorkspaceModalOpen: false,
+      renameWorkspaceFor: null,
+      confirmDeleteWorkspaceFor: null,
+      workspaceContextMenu: null,
+
       addService: (svc) => {
         const id = crypto.randomUUID();
         const next: Service = {
@@ -81,7 +147,8 @@ export const useServicesStore = create<ServicesState>()(
           partition: `persist:${id}`,
           unreadCount: 0,
           isMuted: false,
-          addedAt: Date.now()
+          addedAt: Date.now(),
+          workspaceId: get().activeWorkspaceId
         };
         set((state) => ({ services: [...state.services, next] }));
         // Pre-register the partition with main so the permission handler is
@@ -166,18 +233,188 @@ export const useServicesStore = create<ServicesState>()(
               console.error('[cleanup] partition', svc.partition, err);
             });
         }
-      }
+      },
+
+      addWorkspace: (name, icon) => {
+        const state = get();
+        if (state.workspaces.length >= MAX_WORKSPACES) {
+          throw new Error(`Maximum ${MAX_WORKSPACES} workspaces`);
+        }
+        if (!isValidWorkspaceName(name)) {
+          throw new Error('Invalid workspace name');
+        }
+        const finalIcon = (icon ?? '').trim();
+        if (!isValidWorkspaceIcon(finalIcon)) {
+          throw new Error('Invalid workspace icon');
+        }
+        const id = crypto.randomUUID();
+        const ws: Workspace = {
+          id,
+          name,
+          icon: finalIcon || name.charAt(0).toUpperCase(),
+          order: nextWorkspaceOrder(state.workspaces),
+          createdAt: Date.now()
+        };
+        set({ workspaces: [...state.workspaces, ws] });
+        return id;
+      },
+
+      renameWorkspace: (id, name, icon) => {
+        if (!isValidWorkspaceName(name)) {
+          throw new Error('Invalid workspace name');
+        }
+        const finalIcon = (icon ?? '').trim();
+        if (!isValidWorkspaceIcon(finalIcon)) {
+          throw new Error('Invalid workspace icon');
+        }
+        set((state) => ({
+          workspaces: state.workspaces.map((w) =>
+            w.id === id
+              ? { ...w, name, icon: finalIcon || name.charAt(0).toUpperCase() }
+              : w
+          )
+        }));
+      },
+
+      deleteWorkspace: (id) => {
+        const state = get();
+        const remaining = state.workspaces.filter((w) => w.id !== id);
+        if (remaining.length === 0) {
+          throw new Error('Cannot delete the last remaining workspace');
+        }
+        const target = sortedByOrder(remaining)[0];
+        if (!target) {
+          throw new Error('No migration target available');
+        }
+        const services = state.services.map((s) =>
+          s.workspaceId === id ? { ...s, workspaceId: target.id } : s
+        );
+        // Renormalize order to be contiguous 0..N-1 by current order.
+        const renormalized = sortedByOrder(remaining).map((w, i) => ({
+          ...w,
+          order: i
+        }));
+        const activeWorkspaceId =
+          state.activeWorkspaceId === id ? target.id : state.activeWorkspaceId;
+        set({
+          workspaces: renormalized,
+          services,
+          activeWorkspaceId,
+          confirmDeleteWorkspaceFor: null,
+          renameWorkspaceFor: null,
+          workspaceContextMenu: null
+        });
+      },
+
+      reorderWorkspaces: (orderedIds) =>
+        set((state) => {
+          const indexById = new Map<string, number>();
+          orderedIds.forEach((id, i) => indexById.set(id, i));
+          const updated = state.workspaces.map((w) => {
+            const idx = indexById.get(w.id);
+            return typeof idx === 'number' ? { ...w, order: idx } : w;
+          });
+          return { workspaces: updated };
+        }),
+
+      setActiveWorkspace: (id) => {
+        const state = get();
+        if (id === state.activeWorkspaceId) return;
+        // Preserve activeServiceId only if the active service belongs to the
+        // new workspace; otherwise clear so the user sees the empty state.
+        const active = state.services.find((s) => s.id === state.activeServiceId);
+        const keep = active && active.workspaceId === id;
+        set({ activeWorkspaceId: id, activeServiceId: keep ? state.activeServiceId : null });
+      },
+
+      moveServiceToWorkspace: (serviceId, workspaceId) =>
+        set((state) => ({
+          services: state.services.map((s) =>
+            s.id === serviceId ? { ...s, workspaceId } : s
+          )
+        })),
+
+      cycleWorkspace: (direction) => {
+        const state = get();
+        const ordered = sortedByOrder(state.workspaces);
+        if (ordered.length === 0) return;
+        const idx = ordered.findIndex((w) => w.id === state.activeWorkspaceId);
+        const nextIdx =
+          idx < 0
+            ? 0
+            : (idx + direction + ordered.length) % ordered.length;
+        const nextWs = ordered[nextIdx];
+        if (nextWs) get().setActiveWorkspace(nextWs.id);
+      },
+
+      openAddWorkspaceModal: () => set({ isAddWorkspaceModalOpen: true }),
+      closeAddWorkspaceModal: () => set({ isAddWorkspaceModalOpen: false }),
+
+      openRenameWorkspace: (id) =>
+        set({ renameWorkspaceFor: id, workspaceContextMenu: null }),
+      closeRenameWorkspace: () => set({ renameWorkspaceFor: null }),
+
+      requestDeleteWorkspace: (id) =>
+        set({ confirmDeleteWorkspaceFor: id, workspaceContextMenu: null }),
+      cancelDeleteWorkspace: () => set({ confirmDeleteWorkspaceFor: null }),
+
+      confirmDeleteWorkspace: () => {
+        const id = get().confirmDeleteWorkspaceFor;
+        if (!id) return;
+        get().deleteWorkspace(id);
+      },
+
+      openWorkspaceContextMenu: (workspaceId, x, y) =>
+        set({ workspaceContextMenu: { workspaceId, x, y } }),
+      closeWorkspaceContextMenu: () => set({ workspaceContextMenu: null })
     }),
     {
       name: 'boxb-services',
       storage: createJSONStorage(() => ipcStorage),
       partialize: (state) => ({
         services: state.services.map((s) => ({ ...s, unreadCount: 0 })),
-        activeServiceId: state.activeServiceId
+        activeServiceId: state.activeServiceId,
+        workspaces: state.workspaces,
+        activeWorkspaceId: state.activeWorkspaceId
       })
     }
   )
 );
+
+// Idempotent post-hydration migration. Ensures a "Main" workspace exists and
+// that every service has a workspaceId. Safe to call multiple times. Called
+// from App.tsx once persistence has hydrated.
+export function ensureWorkspacesInitialized(): void {
+  const state = useServicesStore.getState();
+  const orphanedServices = state.services.some((s) => !s.workspaceId);
+  const noWorkspaces = state.workspaces.length === 0;
+  const validIds = new Set(state.workspaces.map((w) => w.id));
+  const invalidActive = !validIds.has(state.activeWorkspaceId);
+
+  if (!orphanedServices && !noWorkspaces && !invalidActive) return;
+
+  let main = state.workspaces.find((w) => w.name === 'Main');
+  let workspaces = state.workspaces;
+  if (!main) {
+    main = {
+      id: crypto.randomUUID(),
+      name: 'Main',
+      icon: 'M',
+      order: 0,
+      createdAt: Date.now()
+    };
+    workspaces = [...workspaces, main];
+  }
+  const services = state.services.map((s) =>
+    s.workspaceId ? s : { ...s, workspaceId: main!.id }
+  );
+  const newValidIds = new Set(workspaces.map((w) => w.id));
+  const activeWorkspaceId = newValidIds.has(state.activeWorkspaceId)
+    ? state.activeWorkspaceId
+    : main.id;
+
+  useServicesStore.setState({ workspaces, services, activeWorkspaceId });
+}
 
 if (import.meta.env.DEV) {
   (window as unknown as Record<string, unknown>).useServicesStore = useServicesStore;

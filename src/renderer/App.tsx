@@ -3,17 +3,42 @@ import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { EmptyState } from './components/EmptyState';
 import { AddAppModal } from './components/AddAppModal';
+import { AddWorkspaceModal } from './components/AddWorkspaceModal';
+import { RenameWorkspaceModal } from './components/RenameWorkspaceModal';
+import { ConfirmDeleteWorkspaceModal } from './components/ConfirmDeleteWorkspaceModal';
 import { ServiceWebView } from './components/ServiceWebView';
-import { ContextMenu } from './components/ContextMenu';
+import { ContextMenu, type ContextMenuItem } from './components/ContextMenu';
 import { ConfirmRemoveModal } from './components/ConfirmRemoveModal';
-import { useServicesStore } from './store/services';
+import { ensureWorkspacesInitialized, useServicesStore } from './store/services';
 
 export default function App(): JSX.Element {
   const activeServiceId = useServicesStore((s) => s.activeServiceId);
+  const activeWorkspaceId = useServicesStore((s) => s.activeWorkspaceId);
   const services = useServicesStore((s) => s.services);
+  const workspaces = useServicesStore((s) => s.workspaces);
   const contextMenu = useServicesStore((s) => s.contextMenu);
   const closeContextMenu = useServicesStore((s) => s.closeContextMenu);
   const requestRemove = useServicesStore((s) => s.requestRemove);
+  const workspaceContextMenu = useServicesStore((s) => s.workspaceContextMenu);
+  const closeWorkspaceContextMenu = useServicesStore(
+    (s) => s.closeWorkspaceContextMenu
+  );
+  const openRenameWorkspace = useServicesStore((s) => s.openRenameWorkspace);
+  const requestDeleteWorkspace = useServicesStore((s) => s.requestDeleteWorkspace);
+  const reorderWorkspaces = useServicesStore((s) => s.reorderWorkspaces);
+
+  // Run idempotent migration once persistence has hydrated. Creates the
+  // "Main" workspace if missing and assigns it to any orphan services.
+  useEffect(() => {
+    if (useServicesStore.persist.hasHydrated()) {
+      ensureWorkspacesInitialized();
+      return;
+    }
+    const unsub = useServicesStore.persist.onFinishHydration(() => {
+      ensureWorkspacesInitialized();
+    });
+    return unsub;
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
@@ -27,15 +52,46 @@ export default function App(): JSX.Element {
         return;
       }
 
+      if (cmdOrCtrl && e.shiftKey && (e.key === ']' || e.key === '}')) {
+        e.preventDefault();
+        state.cycleWorkspace(1);
+        return;
+      }
+      if (cmdOrCtrl && e.shiftKey && (e.key === '[' || e.key === '{')) {
+        e.preventDefault();
+        state.cycleWorkspace(-1);
+        return;
+      }
+
       if (e.key === 'Escape') {
         if (state.confirmRemoveFor) {
           e.preventDefault();
           state.cancelRemove();
           return;
         }
+        if (state.confirmDeleteWorkspaceFor) {
+          e.preventDefault();
+          state.cancelDeleteWorkspace();
+          return;
+        }
+        if (state.renameWorkspaceFor) {
+          e.preventDefault();
+          state.closeRenameWorkspace();
+          return;
+        }
+        if (state.isAddWorkspaceModalOpen) {
+          e.preventDefault();
+          state.closeAddWorkspaceModal();
+          return;
+        }
         if (state.contextMenu) {
           e.preventDefault();
           state.closeContextMenu();
+          return;
+        }
+        if (state.workspaceContextMenu) {
+          e.preventDefault();
+          state.closeWorkspaceContextMenu();
           return;
         }
         if (state.isAddModalOpen) {
@@ -45,9 +101,12 @@ export default function App(): JSX.Element {
         }
       }
 
-      if (cmdOrCtrl && /^[1-9]$/.test(e.key)) {
+      if (cmdOrCtrl && !e.shiftKey && /^[1-9]$/.test(e.key)) {
         const idx = Number(e.key) - 1;
-        const svc = state.services[idx];
+        const visible = state.services.filter(
+          (s) => s.workspaceId === state.activeWorkspaceId
+        );
+        const svc = visible[idx];
         if (svc) {
           e.preventDefault();
           state.setActiveService(svc.id);
@@ -60,15 +119,80 @@ export default function App(): JSX.Element {
   }, []);
 
   // Native notification click → main brings window to front + sends partition.
-  // Match partition to service id and switch active.
+  // Match partition to service id, switch active service, and switch to its
+  // workspace so the user lands on the right pill.
   useEffect(() => {
     const unsubscribe = window.boxb.notification.onClick(({ partition }) => {
       const state = useServicesStore.getState();
       const svc = state.services.find((s) => s.partition === partition);
-      if (svc) state.setActiveService(svc.id);
+      if (!svc) return;
+      if (svc.workspaceId && svc.workspaceId !== state.activeWorkspaceId) {
+        state.setActiveWorkspace(svc.workspaceId);
+      }
+      state.setActiveService(svc.id);
     });
     return unsubscribe;
   }, []);
+
+  const activeService = services.find((s) => s.id === activeServiceId);
+  const showEmpty =
+    !activeService || activeService.workspaceId !== activeWorkspaceId;
+
+  const wsContextItems = ((): ContextMenuItem[] => {
+    if (!workspaceContextMenu) return [];
+    const ordered = [...workspaces].sort((a, b) => a.order - b.order);
+    const idx = ordered.findIndex((w) => w.id === workspaceContextMenu.workspaceId);
+    const isFirst = idx <= 0;
+    const isLast = idx === ordered.length - 1;
+    const isOnly = ordered.length <= 1;
+    return [
+      {
+        type: 'item',
+        label: 'Rename',
+        onClick: () => openRenameWorkspace(workspaceContextMenu.workspaceId)
+      },
+      {
+        type: 'item',
+        label: 'Delete',
+        danger: true,
+        disabled: isOnly,
+        onClick: () => requestDeleteWorkspace(workspaceContextMenu.workspaceId)
+      },
+      { type: 'divider' },
+      {
+        type: 'item',
+        label: 'Move Up',
+        disabled: isFirst,
+        onClick: () => {
+          if (isFirst) return;
+          const next = [...ordered];
+          const tmp = next[idx - 1];
+          const cur = next[idx];
+          if (!tmp || !cur) return;
+          next[idx - 1] = cur;
+          next[idx] = tmp;
+          reorderWorkspaces(next.map((w) => w.id));
+          closeWorkspaceContextMenu();
+        }
+      },
+      {
+        type: 'item',
+        label: 'Move Down',
+        disabled: isLast,
+        onClick: () => {
+          if (isLast) return;
+          const next = [...ordered];
+          const tmp = next[idx + 1];
+          const cur = next[idx];
+          if (!tmp || !cur) return;
+          next[idx + 1] = cur;
+          next[idx] = tmp;
+          reorderWorkspaces(next.map((w) => w.id));
+          closeWorkspaceContextMenu();
+        }
+      }
+    ];
+  })();
 
   return (
     <div className="flex h-screen w-screen bg-bg text-fg overflow-hidden">
@@ -80,10 +204,12 @@ export default function App(): JSX.Element {
             <ServiceWebView
               key={s.id}
               service={s}
-              isActive={s.id === activeServiceId}
+              isActive={
+                s.id === activeServiceId && s.workspaceId === activeWorkspaceId
+              }
             />
           ))}
-          {!activeServiceId && (
+          {showEmpty && (
             <div className="absolute inset-0 z-10">
               <EmptyState />
             </div>
@@ -91,6 +217,9 @@ export default function App(): JSX.Element {
         </div>
       </div>
       <AddAppModal />
+      <AddWorkspaceModal />
+      <RenameWorkspaceModal />
+      <ConfirmDeleteWorkspaceModal />
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
@@ -104,6 +233,14 @@ export default function App(): JSX.Element {
               onClick: () => requestRemove(contextMenu.serviceId)
             }
           ]}
+        />
+      )}
+      {workspaceContextMenu && (
+        <ContextMenu
+          x={workspaceContextMenu.x}
+          y={workspaceContextMenu.y}
+          onClose={closeWorkspaceContextMenu}
+          items={wsContextItems}
         />
       )}
       <ConfirmRemoveModal />

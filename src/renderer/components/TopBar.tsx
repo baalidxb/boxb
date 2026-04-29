@@ -22,7 +22,7 @@ export function TopBar(): JSX.Element {
         ) : (
           <>
             <span className="text-fg">Box</span>
-            <span className="text-accent">B</span>
+            <span className="text-accent font-bold">B</span>
           </>
         )}
       </div>

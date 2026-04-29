@@ -10,3 +10,11 @@ export interface Account {
   appId: string;
   label: string;
 }
+
+export interface Workspace {
+  id: string;
+  name: string;
+  icon: string;
+  order: number;
+  createdAt: number;
+}
