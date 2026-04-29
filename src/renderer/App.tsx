@@ -9,6 +9,7 @@ import { ConfirmDeleteWorkspaceModal } from './components/ConfirmDeleteWorkspace
 import { ServiceWebView } from './components/ServiceWebView';
 import { ContextMenu, type ContextMenuItem } from './components/ContextMenu';
 import { ConfirmRemoveModal } from './components/ConfirmRemoveModal';
+import { RenameServiceModal } from './components/RenameServiceModal';
 import {
   applyBroadcastSnapshot,
   ensureWorkspacesInitialized,
@@ -30,6 +31,7 @@ export default function App(): JSX.Element {
   const openRenameWorkspace = useServicesStore((s) => s.openRenameWorkspace);
   const requestDeleteWorkspace = useServicesStore((s) => s.requestDeleteWorkspace);
   const reorderWorkspaces = useServicesStore((s) => s.reorderWorkspaces);
+  const openRenameService = useServicesStore((s) => s.openRenameService);
 
   // Run idempotent migration once persistence has hydrated. Creates the
   // "Main" workspace if missing and assigns it to any orphan services. If
@@ -99,6 +101,11 @@ export default function App(): JSX.Element {
         if (state.confirmRemoveFor) {
           e.preventDefault();
           state.cancelRemove();
+          return;
+        }
+        if (state.renameServiceFor) {
+          e.preventDefault();
+          state.closeRenameService();
           return;
         }
         if (state.confirmDeleteWorkspaceFor) {
@@ -269,6 +276,12 @@ export default function App(): JSX.Element {
           items={[
             {
               type: 'item',
+              label: 'Rename',
+              onClick: () => openRenameService(contextMenu.serviceId)
+            },
+            { type: 'divider' },
+            {
+              type: 'item',
               label: 'Remove',
               danger: true,
               onClick: () => requestRemove(contextMenu.serviceId)
@@ -285,6 +298,7 @@ export default function App(): JSX.Element {
         />
       )}
       <ConfirmRemoveModal />
+      <RenameServiceModal />
     </div>
   );
 }

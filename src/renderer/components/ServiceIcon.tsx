@@ -39,40 +39,46 @@ export function ServiceIcon({ service, active }: ServiceIconProps): JSX.Element 
 
   const ringClass = active
     ? 'ring-2 ring-accent'
-    : 'hover:ring-2 hover:ring-accent/50';
+    : 'group-hover:ring-2 group-hover:ring-accent/50 group-focus-visible:ring-2 group-focus-visible:ring-accent';
 
   const showImg = Boolean(service.iconUrl) && !imgError;
 
   return (
-    <div className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setActiveService(service.id)}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          openContextMenu(service.id, e.clientX, e.clientY);
-        }}
-        title={service.name}
-        className={[
-          'w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center',
-          'bg-bg text-fg text-xs font-semibold uppercase',
-          'transition-all duration-150 ease-out hover:scale-105',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-          ringClass
-        ].join(' ')}
-      >
-        {showImg ? (
-          <img
-            src={service.iconUrl}
-            alt={service.name}
-            className="w-7 h-7"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <span>{service.name.slice(0, 2)}</span>
-        )}
-      </button>
-      <Badge count={service.unreadCount} />
-    </div>
+    <button
+      type="button"
+      onClick={() => setActiveService(service.id)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        openContextMenu(service.id, e.clientX, e.clientY);
+      }}
+      title={service.name}
+      className="group flex flex-col items-center gap-[5px] shrink-0 focus:outline-none"
+    >
+      <div className="relative">
+        <div
+          className={[
+            'w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center',
+            'bg-bg text-fg text-xs font-semibold uppercase',
+            'transition-all duration-150 ease-out group-hover:scale-105',
+            ringClass
+          ].join(' ')}
+        >
+          {showImg ? (
+            <img
+              src={service.iconUrl}
+              alt={service.name}
+              className="w-7 h-7"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <span>{service.name.slice(0, 2)}</span>
+          )}
+        </div>
+        <Badge count={service.unreadCount} />
+      </div>
+      <span className="text-[11px] leading-tight text-muted max-w-[60px] truncate text-center">
+        {service.name}
+      </span>
+    </button>
   );
 }

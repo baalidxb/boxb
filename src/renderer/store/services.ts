@@ -48,7 +48,12 @@ export function registerPartitionOnce(partition: string): void {
 export interface Service {
   id: string;
   catalogId: string;
+  // Display name. Per-instance — user can rename via the rename modal.
   name: string;
+  // The original name from the catalog (or the user's typed name for
+  // custom services). Used to revert when the user clears the rename
+  // field. Stable across the service's lifetime.
+  defaultName: string;
   iconUrl: string;
   url: string;
   partition: string;
@@ -61,7 +66,7 @@ export interface Service {
 
 type NewServiceInput = Omit<
   Service,
-  'id' | 'partition' | 'unreadCount' | 'isMuted' | 'addedAt' | 'workspaceId'
+  'id' | 'partition' | 'unreadCount' | 'isMuted' | 'addedAt' | 'workspaceId' | 'defaultName'
 >;
 
 interface ContextMenuTarget {
@@ -93,12 +98,27 @@ export function workspaceDisplayChar(w: Workspace): string {
   return w.name.charAt(0).toUpperCase();
 }
 
+export const SERVICE_NAME_MAX = 30;
+const CONTROL_CHAR_RE = /[\u0000-\u001F\u007F]/;
+
+// Service rename validation. Permissive: allow letters, numbers, spaces,
+// punctuation, and most Unicode (so users can label tiles with emoji,
+// non-ASCII names, etc.). Rejects control characters (tab, newline, etc.)
+// and overlong strings. Empty input is valid in the modal — saving empty
+// resets the tile name to its catalog/creation default.
+export function isValidServiceName(s: string): boolean {
+  if (CONTROL_CHAR_RE.test(s)) return false;
+  if (s.trim().length > SERVICE_NAME_MAX) return false;
+  return true;
+}
+
 interface ServicesState {
   services: Service[];
   activeServiceId: string | null;
   isAddModalOpen: boolean;
   contextMenu: ContextMenuTarget | null;
   confirmRemoveFor: string | null;
+  renameServiceFor: string | null;
 
   workspaces: Workspace[];
   activeWorkspaceId: string;
@@ -115,6 +135,7 @@ interface ServicesState {
 
   addService: (svc: NewServiceInput) => string;
   removeService: (id: string) => void;
+  renameService: (id: string, name: string) => void;
   setActiveService: (id: string | null) => void;
   reorderServices: (fromIndex: number, toIndex: number) => void;
   setUnreadCount: (id: string, count: number) => void;
@@ -125,6 +146,8 @@ interface ServicesState {
   requestRemove: (serviceId: string) => void;
   cancelRemove: () => void;
   confirmRemove: () => Promise<void>;
+  openRenameService: (serviceId: string) => void;
+  closeRenameService: () => void;
 
   addWorkspace: (name: string, icon?: string) => string;
   renameWorkspace: (id: string, name: string, icon?: string) => void;
@@ -163,6 +186,7 @@ export const useServicesStore = create<ServicesState>()(
       isAddModalOpen: false,
       contextMenu: null,
       confirmRemoveFor: null,
+      renameServiceFor: null,
 
       workspaces: [],
       activeWorkspaceId: '',
@@ -177,6 +201,9 @@ export const useServicesStore = create<ServicesState>()(
         const next: Service = {
           ...svc,
           id,
+          // Snapshot the catalog/creation name so the rename modal can
+          // revert when the user clears the field.
+          defaultName: svc.name,
           partition: `persist:${id}`,
           unreadCount: 0,
           isMuted: false,
@@ -257,6 +284,28 @@ export const useServicesStore = create<ServicesState>()(
       requestRemove: (serviceId) =>
         set({ contextMenu: null, confirmRemoveFor: serviceId }),
       cancelRemove: () => set({ confirmRemoveFor: null }),
+
+      renameService: (id, name) => {
+        // Validate first so callers see a clear error in dev. The modal
+        // also gates Save on the same predicate.
+        if (!isValidServiceName(name)) {
+          throw new Error('Invalid service name');
+        }
+        const trimmed = name.trim();
+        set((state) => ({
+          services: state.services.map((s) =>
+            s.id === id
+              ? { ...s, name: trimmed === '' ? s.defaultName : trimmed }
+              : s
+          )
+        }));
+        const s = get();
+        broadcastGlobals({ workspaces: s.workspaces, services: s.services });
+      },
+
+      openRenameService: (serviceId) =>
+        set({ renameServiceFor: serviceId, contextMenu: null }),
+      closeRenameService: () => set({ renameServiceFor: null }),
 
       confirmRemove: async () => {
         const id = get().confirmRemoveFor;
@@ -467,17 +516,20 @@ export const useServicesStore = create<ServicesState>()(
   )
 );
 
-// Idempotent post-hydration migration. Ensures a "Main" workspace exists and
-// that every service has a workspaceId. Safe to call multiple times. Called
-// from App.tsx once persistence has hydrated.
+// Idempotent post-hydration migration. Ensures a "Main" workspace exists,
+// every service has a workspaceId, and every service has a defaultName.
+// Safe to call multiple times. Called from App.tsx once persistence has
+// hydrated.
 export function ensureWorkspacesInitialized(): void {
   const state = useServicesStore.getState();
   const orphanedServices = state.services.some((s) => !s.workspaceId);
+  const missingDefaultName = state.services.some((s) => !s.defaultName);
   const noWorkspaces = state.workspaces.length === 0;
   const validIds = new Set(state.workspaces.map((w) => w.id));
   const invalidActive = !validIds.has(state.activeWorkspaceId);
 
-  if (!orphanedServices && !noWorkspaces && !invalidActive) return;
+  if (!orphanedServices && !missingDefaultName && !noWorkspaces && !invalidActive)
+    return;
 
   let main = state.workspaces.find((w) => w.name === 'Main');
   let workspaces = state.workspaces;
@@ -491,9 +543,15 @@ export function ensureWorkspacesInitialized(): void {
     };
     workspaces = [...workspaces, main];
   }
-  const services = state.services.map((s) =>
-    s.workspaceId ? s : { ...s, workspaceId: main!.id }
-  );
+  const services = state.services.map((s) => {
+    let next = s;
+    if (!next.workspaceId) next = { ...next, workspaceId: main!.id };
+    // Backfill defaultName for services persisted before Phase 5c. Their
+    // current name is the original (no rename has happened yet), so it's
+    // a safe fallback.
+    if (!next.defaultName) next = { ...next, defaultName: next.name };
+    return next;
+  });
   const newValidIds = new Set(workspaces.map((w) => w.id));
   const activeWorkspaceId = newValidIds.has(state.activeWorkspaceId)
     ? state.activeWorkspaceId
