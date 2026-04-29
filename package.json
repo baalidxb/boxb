@@ -22,7 +22,8 @@
     "package:linux": "electron-vite build && electron-builder --linux --config build/electron-builder.yml",
     "clean": "rimraf out release",
     "generate-icons": "tsx scripts/generate-icons.ts",
-    "postinstall": "npm run generate-icons"
+    "generate-tray-icons": "tsx scripts/generate-tray-icons.ts",
+    "postinstall": "npm run generate-icons && npm run generate-tray-icons"
   },
   "dependencies": {
     "electron-store": "^10.0.0",
@@ -45,6 +46,7 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "postcss": "^8.4.49",
     "rimraf": "^6.0.1",
+    "sharp": "^0.34.5",
     "simple-icons": "^16.18.0",
     "tailwindcss": "^3.4.14",
     "tsx": "^4.21.0",

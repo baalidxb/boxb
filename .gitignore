@@ -13,3 +13,6 @@ release/
 
 # Generated brand icons (built from simple-icons via npm run generate-icons)
 src/renderer/public/icons/*.svg
+
+# Generated tray icons (built from logo SVG via npm run generate-tray-icons)
+resources/tray/*.png

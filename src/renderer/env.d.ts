@@ -35,6 +35,16 @@ declare global {
         getAll(): Promise<Record<string, unknown>>;
         clear(): Promise<void>;
       };
+      service: {
+        cleanupPartition: (
+          partition: string
+        ) => Promise<{ ok: boolean; error?: string }>;
+        registerPartition: (partition: string) => void;
+        getWebviewPreloadPath: () => Promise<string>;
+      };
+      notification: {
+        onClick: (handler: (payload: { partition: string }) => void) => () => void;
+      };
     };
   }
 }

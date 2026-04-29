@@ -7,11 +7,24 @@ export function Sidebar(): JSX.Element {
   const services = useServicesStore((s) => s.services);
   const activeServiceId = useServicesStore((s) => s.activeServiceId);
   const openAddModal = useServicesStore((s) => s.openAddModal);
+  const setActiveService = useServicesStore((s) => s.setActiveService);
 
   return (
     <aside className="w-[68px] h-screen shrink-0 bg-surface border-r-[0.5px] border-r-[#1A1A1A] flex flex-col">
       <div className="flex items-center justify-center pt-[14px] pb-[14px]">
-        <Logo size={40} />
+        <button
+          type="button"
+          onClick={() => setActiveService(null)}
+          title="Home"
+          aria-label="Home"
+          className={[
+            'cursor-pointer rounded',
+            'transition-opacity duration-150 ease-out hover:opacity-80',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+          ].join(' ')}
+        >
+          <Logo size={40} />
+        </button>
       </div>
 
       <div className="border-t-[0.5px] border-t-[#1A1A1A]" />

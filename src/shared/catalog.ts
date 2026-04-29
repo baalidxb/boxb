@@ -3,7 +3,8 @@ export type CatalogCategory =
   | 'email'
   | 'productivity'
   | 'work'
-  | 'ai';
+  | 'ai'
+  | 'custom';
 
 export interface CatalogApp {
   id: string;
@@ -20,9 +21,13 @@ export const CATEGORY_LABELS: Record<CatalogCategory, string> = {
   email: 'Email',
   productivity: 'Productivity',
   work: 'Work',
-  ai: 'AI'
+  ai: 'AI',
+  custom: 'Custom'
 };
 
+// Order used to render section headers in the catalog modal. 'custom' is
+// intentionally excluded — custom services live in the sidebar but aren't a
+// browseable catalog section.
 export const CATEGORY_ORDER: CatalogCategory[] = [
   'messaging',
   'email',

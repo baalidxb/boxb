@@ -6,7 +6,6 @@ export function TopBar(): JSX.Element {
   const activeServiceId = useServicesStore((s) => s.activeServiceId);
   const services = useServicesStore((s) => s.services);
   const active = services.find((s) => s.id === activeServiceId);
-  const title = active?.name ?? 'BoxB';
 
   const buttonClass = [
     'flex items-center justify-center text-muted rounded',
@@ -17,7 +16,16 @@ export function TopBar(): JSX.Element {
 
   return (
     <header className="h-11 w-full shrink-0 bg-surface border-b-[0.5px] border-b-[#1A1A1A] flex items-center justify-between pl-4 pr-4">
-      <div className="text-sm font-medium text-fg truncate">{title}</div>
+      <div className="text-sm font-medium truncate">
+        {active ? (
+          <span className="text-fg">{active.name}</span>
+        ) : (
+          <>
+            <span className="text-fg">Box</span>
+            <span className="text-accent">B</span>
+          </>
+        )}
+      </div>
       <div className="flex items-center gap-3">
         <button
           type="button"
