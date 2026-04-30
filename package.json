@@ -23,7 +23,8 @@
     "clean": "rimraf out release",
     "generate-icons": "tsx scripts/generate-icons.ts",
     "generate-tray-icons": "tsx scripts/generate-tray-icons.ts",
-    "postinstall": "npm run generate-icons && npm run generate-tray-icons"
+    "generate-app-icons": "tsx scripts/generate-app-icons.ts",
+    "postinstall": "npm run generate-icons && npm run generate-tray-icons && npm run generate-app-icons"
   },
   "dependencies": {
     "electron-store": "^10.0.0",

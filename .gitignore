@@ -16,3 +16,6 @@ src/renderer/public/icons/*.svg
 
 # Generated tray icons (built from logo SVG via npm run generate-tray-icons)
 resources/tray/*.png
+
+# Generated app icon (built from logo SVG via npm run generate-app-icons)
+resources/icon.png

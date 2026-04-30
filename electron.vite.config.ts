@@ -33,7 +33,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
-          webview: resolve('src/preload/webview.ts')
+          webview: resolve('src/preload/webview.ts'),
+          toast: resolve('src/preload/toast.ts')
         },
         output: {
           format: 'cjs',

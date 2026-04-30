@@ -7,11 +7,11 @@ import { createTray } from './tray';
 import { lifecycle } from './lifecycle';
 import { dlog, clearDebugLog } from './debug-log';
 import { initHibernation } from './hibernation';
+import { initToastWindow } from './in-app-toast';
 
-// Must be set before any window or webview is created. Required on Windows
-// for HTML5 Notification toasts to actually display via Action Center —
-// without it the Notification constructor hangs the renderer because Windows
-// can't resolve a registered app for the toast.
+// AUMID is harmless to set even though we no longer rely on Windows toast
+// resolution (Phase 6.5 retired that path — see src/main/in-app-toast.ts).
+// Kept in case future features want it (jump lists, taskbar grouping).
 if (process.platform === 'win32') {
   app.setAppUserModelId('app.boxb');
 }
@@ -80,13 +80,9 @@ if (!gotLock) {
     if (process.platform === 'win32') {
       dlog('APP:user-model-id-set', { id: 'app.boxb' });
     }
-    if (!app.isPackaged) {
-      console.log(
-        '[BoxB] Native toast notifications disabled in dev mode. They activate in packaged builds (npm run package). Badges still work.'
-      );
-      dlog('APP:dev-mode-toast-disabled');
-    }
 
+    initToastWindow();
+    dlog('APP:toast-window-initialized');
     const storage = registerIpcHandlers();
     dlog('APP:ipc-handlers-registered');
     initPermissions(storage, getMainWindow);

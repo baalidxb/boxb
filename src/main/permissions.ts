@@ -1,8 +1,9 @@
-import { app, BrowserWindow, Notification, ipcMain, session } from 'electron';
+import { app, BrowserWindow, ipcMain, session } from 'electron';
 import type { Session, WebContents } from 'electron';
 import { ElectronStoreAdapter } from './storage/electron-store-adapter';
 import { IPC } from '@shared/ipc';
 import { dlog } from './debug-log';
+import { showToast } from './in-app-toast';
 
 const knownPartitions = new Set<string>();
 const webContentsPartition = new Map<number, string>();
@@ -160,11 +161,13 @@ export function initPermissions(
     });
   });
 
-  // Main-side notification path. The page's window.Notification has been
-  // replaced with a fake constructor that returns immediately and forwards
-  // the payload here. We fire the actual OS toast via Electron's own
-  // Notification class — same path Slack/Discord use, properly hooked into
-  // Windows Action Center via the AppUserModelId set in main/index.ts.
+  // Main-side notification path. The page's window.Notification was replaced
+  // (in src/preload/webview.ts) by a fake that forwards each construction
+  // here. Phase 6.5 retired the Electron Notification API entirely after the
+  // hang on Notification.isSupported() couldn't be cleared by AUMID
+  // registration; we render our own toast in a dedicated BrowserWindow
+  // (src/main/in-app-toast.ts) and route clicks through the same partition
+  // → notification-click chain we use for OS toasts.
   ipcMain.on(
     'notif:create-from-page',
     (
@@ -174,88 +177,46 @@ export function initPermissions(
       const id = String(payload?.id ?? 'unknown');
       const title = String(payload?.title ?? 'BoxB');
       const body = String(payload?.body ?? '');
+      const iconUrl = typeof payload?.icon === 'string' ? payload.icon : undefined;
       const senderId = event.sender.id;
+      const partition = webContentsPartition.get(senderId);
 
-      // Windows dev environments without a registered installed app
-      // synchronously hang the main process inside Notification.isSupported().
-      // Skip the entire native-toast path in dev — badges still update via
-      // page-title-updated, and the page-side wrapper still returns a fake
-      // Notification so the site's JS doesn't crash. Production builds
-      // (app.isPackaged === true) take the normal path.
-      if (!app.isPackaged) {
-        dlog('NOTIF:main-skipped-dev', { id, title, reason: 'dev-mode-no-toast' });
-        return;
-      }
-
-      dlog('NOTIF:main-creating', { id, title, body, senderId });
-
-      dlog('NOTIF:main-before-isSupported', { id });
-      if (!Notification.isSupported()) {
-        dlog('NOTIF:main-NOT-SUPPORTED', { id });
-        return;
-      }
-
-      dlog('NOTIF:main-before-construct', { id });
-      let notif: Notification;
-      try {
-        notif = new Notification({
-          title,
-          body,
-          silent: false
-        });
-        dlog('NOTIF:main-after-construct', { id });
-      } catch (err) {
-        dlog('NOTIF:main-CONSTRUCT-FAILED', {
-          id,
-          error: err instanceof Error ? err.message : String(err)
-        });
-        return;
-      }
-
-      notif.on('show', () => dlog('NOTIF:main-shown', { id }));
-      notif.on('close', () => dlog('NOTIF:main-closed', { id }));
-      notif.on('failed', (_e, error) => dlog('NOTIF:main-FAILED', { id, error }));
-      notif.on('click', () => {
-        dlog('NOTIF:main-clicked', { id, title });
-        const win = getMainWindow();
-        if (win) {
-          if (win.isMinimized()) {
-            dlog('WIN:restore', { reason: 'main-notif-click' });
-            win.restore();
+      showToast({
+        id,
+        title,
+        body,
+        iconUrl,
+        onClick: () => {
+          dlog('TOAST:click-handler-running', { id, title, partition });
+          const win = getMainWindow();
+          if (win) {
+            if (win.isMinimized()) {
+              dlog('WIN:restore', { reason: 'toast-click' });
+              win.restore();
+            }
+            if (!win.isVisible()) {
+              dlog('WIN:show', { reason: 'toast-click' });
+              win.show();
+            }
+            dlog('WIN:focus', { reason: 'toast-click' });
+            win.focus();
           }
-          if (!win.isVisible()) {
-            dlog('WIN:show', { reason: 'main-notif-click' });
-            win.show();
+          if (partition && win) {
+            dlog('WIN:send', {
+              channel: IPC.service.notificationClick,
+              payload: { partition }
+            });
+            win.webContents.send(IPC.service.notificationClick, { partition });
           }
-          dlog('WIN:focus', { reason: 'main-notif-click' });
-          win.focus();
-        }
-        const partition = webContentsPartition.get(senderId);
-        if (partition && win) {
-          dlog('WIN:send', {
-            channel: IPC.service.notificationClick,
-            payload: { partition }
-          });
-          win.webContents.send(IPC.service.notificationClick, { partition });
-        }
-        // Echo back to the originating webview so its page-side listeners
-        // (onclick, addEventListener('click')) fire.
-        if (!event.sender.isDestroyed()) {
-          dlog('NOTIF:main-echo-click-to-page', { id, senderId });
-          event.sender.send('notif:clicked', { id });
+          // Echo back to the originating webview so the page's own
+          // onclick / addEventListener('click') fire (e.g. WhatsApp opens
+          // the chat thread in response).
+          if (!event.sender.isDestroyed()) {
+            dlog('TOAST:echo-click-to-page', { id, senderId });
+            event.sender.send('notif:clicked', { id });
+          }
         }
       });
-
-      dlog('NOTIF:main-before-show', { id });
-      try {
-        notif.show();
-        dlog('NOTIF:main-after-show', { id });
-      } catch (err) {
-        dlog('NOTIF:main-SHOW-FAILED', {
-          id,
-          error: err instanceof Error ? err.message : String(err)
-        });
-      }
     }
   );
 }

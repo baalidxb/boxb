@@ -22,6 +22,15 @@ export const IPC = Object.freeze({
     applyBroadcast: 'window:apply-broadcast',
     forceClose: 'window:force-close'
   },
+  toast: {
+    // Main → toast renderer: append a toast to the visible stack.
+    show: 'toast:show',
+    // Toast renderer → main: user clicked a toast (id identifies which one).
+    click: 'toast:click',
+    // Toast renderer → main: toast finished its dismiss animation; main can
+    // hide the window once the stack is empty.
+    dismissed: 'toast:dismissed'
+  },
   hibernation: {
     // Renderer → main: report a webview's wcId + partition + service id +
     // hibernation mode + initial active state. The main-side tracker uses
