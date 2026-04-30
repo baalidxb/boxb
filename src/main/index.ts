@@ -6,6 +6,7 @@ import { initPermissions } from './permissions';
 import { createTray } from './tray';
 import { lifecycle } from './lifecycle';
 import { dlog, clearDebugLog } from './debug-log';
+import { initHibernation } from './hibernation';
 
 // Must be set before any window or webview is created. Required on Windows
 // for HTML5 Notification toasts to actually display via Action Center —
@@ -90,6 +91,8 @@ if (!gotLock) {
     dlog('APP:ipc-handlers-registered');
     initPermissions(storage, getMainWindow);
     dlog('APP:permissions-initialized');
+    initHibernation();
+    dlog('APP:hibernation-initialized');
     createMainWindow();
     dlog('APP:main-window-created');
     createTray(getMainWindow);

@@ -21,6 +21,7 @@ export default function App(): JSX.Element {
   const activeWorkspaceId = useServicesStore((s) => s.activeWorkspaceId);
   const services = useServicesStore((s) => s.services);
   const workspaces = useServicesStore((s) => s.workspaces);
+  const hibernatedServiceIds = useServicesStore((s) => s.hibernatedServiceIds);
   const contextMenu = useServicesStore((s) => s.contextMenu);
   const closeContextMenu = useServicesStore((s) => s.closeContextMenu);
   const requestRemove = useServicesStore((s) => s.requestRemove);
@@ -173,6 +174,18 @@ export default function App(): JSX.Element {
     return unsubscribe;
   }, []);
 
+  // Main → renderer: the hibernation tracker decided to aggressive-hibernate
+  // a service in this window. Add to the per-window set so ServiceWebView
+  // unmounts the inner <webview>.
+  useEffect(() => {
+    const unsubscribe = window.boxb.hibernation.onRequestUnmount(
+      ({ serviceId }) => {
+        useServicesStore.getState().hibernateService(serviceId);
+      }
+    );
+    return unsubscribe;
+  }, []);
+
   const activeService = services.find((s) => s.id === activeServiceId);
   const showEmpty =
     !activeService || activeService.workspaceId !== activeWorkspaceId;
@@ -254,6 +267,9 @@ export default function App(): JSX.Element {
               service={s}
               isActive={
                 s.id === activeServiceId && s.workspaceId === activeWorkspaceId
+              }
+              aggressiveHibernated={
+                s.hibernation === 'aggressive' && hibernatedServiceIds.has(s.id)
               }
             />
           ))}

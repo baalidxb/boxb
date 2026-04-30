@@ -14,6 +14,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://web.whatsapp.com',
     iconUrl: '/icons/whatsapp-web.svg',
     category: 'messaging',
+    hibernation: 'light',
     userAgent: CHROME_UA
   },
   {
@@ -22,6 +23,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://web.whatsapp.com',
     iconUrl: '/icons/whatsapp-business.svg',
     category: 'messaging',
+    hibernation: 'light',
     userAgent: CHROME_UA
   },
   {
@@ -29,7 +31,8 @@ export const catalog: CatalogApp[] = [
     name: 'Telegram Web',
     url: 'https://web.telegram.org/k/',
     iconUrl: '/icons/telegram-web.svg',
-    category: 'messaging'
+    category: 'messaging',
+    hibernation: 'light'
   },
   {
     id: 'messenger',
@@ -37,6 +40,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://www.messenger.com',
     iconUrl: '/icons/messenger.svg',
     category: 'messaging',
+    hibernation: 'light',
     userAgent: CHROME_UA
   },
   {
@@ -45,6 +49,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://mail.google.com',
     iconUrl: '/icons/gmail.svg',
     category: 'email',
+    hibernation: 'aggressive',
     userAgent: CHROME_UA
   },
   {
@@ -53,6 +58,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://docs.google.com',
     iconUrl: '/icons/google-docs.svg',
     category: 'productivity',
+    hibernation: 'aggressive',
     userAgent: CHROME_UA
   },
   {
@@ -61,6 +67,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://sheets.google.com',
     iconUrl: '/icons/google-sheets.svg',
     category: 'productivity',
+    hibernation: 'aggressive',
     userAgent: CHROME_UA
   },
   {
@@ -69,6 +76,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://drive.google.com',
     iconUrl: '/icons/google-drive.svg',
     category: 'productivity',
+    hibernation: 'aggressive',
     userAgent: CHROME_UA
   },
   {
@@ -77,6 +85,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://www.notion.so',
     iconUrl: '/icons/notion.svg',
     category: 'productivity',
+    hibernation: 'aggressive',
     userAgent: CHROME_UA
   },
   {
@@ -85,6 +94,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://trello.com',
     iconUrl: '/icons/trello.svg',
     category: 'productivity',
+    hibernation: 'aggressive',
     userAgent: CHROME_UA
   },
   {
@@ -93,6 +103,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://keep.google.com',
     iconUrl: '/icons/google-keep.svg',
     category: 'productivity',
+    hibernation: 'aggressive',
     userAgent: CHROME_UA
   },
   {
@@ -101,6 +112,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://app.slack.com/client',
     iconUrl: '/icons/slack.svg',
     category: 'work',
+    hibernation: 'light',
     userAgent: CHROME_UA
   },
   {
@@ -109,6 +121,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://discord.com/app',
     iconUrl: '/icons/discord.svg',
     category: 'work',
+    hibernation: 'light',
     userAgent: CHROME_UA
   },
   {
@@ -116,14 +129,16 @@ export const catalog: CatalogApp[] = [
     name: 'ChatGPT',
     url: 'https://chat.openai.com',
     iconUrl: '/icons/chatgpt.svg',
-    category: 'ai'
+    category: 'ai',
+    hibernation: 'aggressive'
   },
   {
     id: 'claude',
     name: 'Claude',
     url: 'https://claude.ai',
     iconUrl: '/icons/claude.svg',
-    category: 'ai'
+    category: 'ai',
+    hibernation: 'aggressive'
   },
   {
     id: 'gemini',
@@ -131,6 +146,7 @@ export const catalog: CatalogApp[] = [
     url: 'https://gemini.google.com',
     iconUrl: '/icons/gemini.svg',
     category: 'ai',
+    hibernation: 'aggressive',
     userAgent: CHROME_UA
   },
   {
@@ -138,6 +154,7 @@ export const catalog: CatalogApp[] = [
     name: 'Perplexity',
     url: 'https://www.perplexity.ai',
     iconUrl: '/icons/perplexity.svg',
-    category: 'ai'
+    category: 'ai',
+    hibernation: 'aggressive'
   }
 ];

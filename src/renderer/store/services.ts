@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { ipcStorage } from './storage';
 import type { Workspace } from '@shared/types';
+import type { HibernationMode } from '@shared/catalog';
+import { catalog } from '../../catalog/apps';
 
 // Multi-window state sync. Each renderer broadcasts the GLOBAL slice
 // (workspaces, services) after every global mutation. Other windows apply
@@ -62,6 +64,10 @@ export interface Service {
   isMuted: boolean;
   addedAt: number;
   workspaceId: string;
+  // Phase 6: per-service hibernation strategy. Propagated from the catalog
+  // entry at addService time. Custom URLs default to 'aggressive' since we
+  // don't know the use case (user override is Phase 8).
+  hibernation: HibernationMode;
 }
 
 type NewServiceInput = Omit<
@@ -115,6 +121,13 @@ export function isValidServiceName(s: string): boolean {
 interface ServicesState {
   services: Service[];
   activeServiceId: string | null;
+  // Per-window. Tracks which services have been hibernated (light or
+  // aggressive). For aggressive mode, the ServiceWebView returns null when
+  // the id is in this set, unmounting the inner <webview>. For light mode
+  // the freeze happens entirely in the main process; we still record the id
+  // here for parity / future visual indicators. Never persisted, never
+  // broadcast — hibernation is per-window state.
+  hibernatedServiceIds: Set<string>;
   isAddModalOpen: boolean;
   contextMenu: ContextMenuTarget | null;
   confirmRemoveFor: string | null;
@@ -137,6 +150,8 @@ interface ServicesState {
   removeService: (id: string) => void;
   renameService: (id: string, name: string) => void;
   setActiveService: (id: string | null) => void;
+  hibernateService: (id: string) => void;
+  wakeService: (id: string) => void;
   reorderServices: (fromIndex: number, toIndex: number) => void;
   setUnreadCount: (id: string, count: number) => void;
   openAddModal: () => void;
@@ -183,6 +198,7 @@ export const useServicesStore = create<ServicesState>()(
     (set, get) => ({
       services: [],
       activeServiceId: null,
+      hibernatedServiceIds: new Set<string>(),
       isAddModalOpen: false,
       contextMenu: null,
       confirmRemoveFor: null,
@@ -221,15 +237,59 @@ export const useServicesStore = create<ServicesState>()(
       },
 
       removeService: (id) => {
-        set((state) => ({
-          services: state.services.filter((s) => s.id !== id),
-          activeServiceId: state.activeServiceId === id ? null : state.activeServiceId
-        }));
+        set((state) => {
+          const nextHibernated = state.hibernatedServiceIds.has(id)
+            ? (() => {
+                const n = new Set(state.hibernatedServiceIds);
+                n.delete(id);
+                return n;
+              })()
+            : state.hibernatedServiceIds;
+          return {
+            services: state.services.filter((s) => s.id !== id),
+            activeServiceId:
+              state.activeServiceId === id ? null : state.activeServiceId,
+            hibernatedServiceIds: nextHibernated
+          };
+        });
         const s = get();
         broadcastGlobals({ workspaces: s.workspaces, services: s.services });
       },
 
-      setActiveService: (id) => set({ activeServiceId: id }),
+      setActiveService: (id) => {
+        // Wake the target before activating it. For aggressive-hibernated
+        // services, removing the id from the set causes ServiceWebView to
+        // re-render the <webview> on the same render pass as activeServiceId
+        // flips, so the user sees a fresh load with a spinner. For
+        // light-hibernated services, the markActive IPC fired by the
+        // ServiceWebView active-transition effect auto-thaws the page world
+        // on the main side.
+        if (id !== null) {
+          const state = get();
+          if (state.hibernatedServiceIds.has(id)) {
+            const next = new Set(state.hibernatedServiceIds);
+            next.delete(id);
+            set({ hibernatedServiceIds: next });
+          }
+        }
+        set({ activeServiceId: id });
+      },
+
+      hibernateService: (id) => {
+        const state = get();
+        if (state.hibernatedServiceIds.has(id)) return;
+        const next = new Set(state.hibernatedServiceIds);
+        next.add(id);
+        set({ hibernatedServiceIds: next });
+      },
+
+      wakeService: (id) => {
+        const state = get();
+        if (!state.hibernatedServiceIds.has(id)) return;
+        const next = new Set(state.hibernatedServiceIds);
+        next.delete(id);
+        set({ hibernatedServiceIds: next });
+      },
 
       reorderServices: (fromIndex, toIndex) => {
         let changed = false;
@@ -517,18 +577,25 @@ export const useServicesStore = create<ServicesState>()(
 );
 
 // Idempotent post-hydration migration. Ensures a "Main" workspace exists,
-// every service has a workspaceId, and every service has a defaultName.
-// Safe to call multiple times. Called from App.tsx once persistence has
-// hydrated.
+// every service has a workspaceId, every service has a defaultName, and every
+// service has a hibernation mode. Safe to call multiple times. Called from
+// App.tsx once persistence has hydrated.
 export function ensureWorkspacesInitialized(): void {
   const state = useServicesStore.getState();
   const orphanedServices = state.services.some((s) => !s.workspaceId);
   const missingDefaultName = state.services.some((s) => !s.defaultName);
+  const missingHibernation = state.services.some((s) => !s.hibernation);
   const noWorkspaces = state.workspaces.length === 0;
   const validIds = new Set(state.workspaces.map((w) => w.id));
   const invalidActive = !validIds.has(state.activeWorkspaceId);
 
-  if (!orphanedServices && !missingDefaultName && !noWorkspaces && !invalidActive)
+  if (
+    !orphanedServices &&
+    !missingDefaultName &&
+    !missingHibernation &&
+    !noWorkspaces &&
+    !invalidActive
+  )
     return;
 
   let main = state.workspaces.find((w) => w.name === 'Main');
@@ -550,6 +617,13 @@ export function ensureWorkspacesInitialized(): void {
     // current name is the original (no rename has happened yet), so it's
     // a safe fallback.
     if (!next.defaultName) next = { ...next, defaultName: next.name };
+    // Backfill hibernation mode for services persisted before Phase 6. Look
+    // up the catalog entry by catalogId; custom URLs (no catalog match)
+    // default to 'aggressive'.
+    if (!next.hibernation) {
+      const cat = catalog.find((c) => c.id === next.catalogId);
+      next = { ...next, hibernation: cat ? cat.hibernation : 'aggressive' };
+    }
     return next;
   });
   const newValidIds = new Set(workspaces.map((w) => w.id));

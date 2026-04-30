@@ -97,6 +97,7 @@ export function AddAppModal(): JSX.Element | null {
       name: app.name,
       iconUrl: app.iconUrl,
       url: app.url,
+      hibernation: app.hibernation,
       ...(app.userAgent ? { userAgent: app.userAgent } : {})
     });
     setActiveService(id);
@@ -133,8 +134,10 @@ export function AddAppModal(): JSX.Element | null {
       name: customNameTrimmed,
       url,
       iconUrl,
-      category: 'custom'
-    } as Parameters<typeof addService>[0]);
+      // Custom URLs default to aggressive — we don't know the use case.
+      // User override is Phase 8.
+      hibernation: 'aggressive'
+    });
     setActiveService(id);
     closeAddModal();
   };

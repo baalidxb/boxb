@@ -66,6 +66,34 @@ const api = {
     forceClose: (): void => {
       ipcRenderer.send(IPC.window.forceClose);
     }
+  },
+  hibernation: {
+    register: (payload: {
+      wcId: number;
+      partition: string;
+      serviceId: string;
+      hibernation: 'light' | 'aggressive';
+      isActive: boolean;
+    }): void => {
+      ipcRenderer.send(IPC.hibernation.register, payload);
+    },
+    unregister: (payload: { wcId: number }): void => {
+      ipcRenderer.send(IPC.hibernation.unregister, payload);
+    },
+    markActive: (payload: { wcId: number; isActive: boolean }): void => {
+      ipcRenderer.send(IPC.hibernation.markActive, payload);
+    },
+    onRequestUnmount: (
+      handler: (payload: { serviceId: string }) => void
+    ): (() => void) => {
+      const wrapped = (
+        _e: IpcRendererEvent,
+        payload: { serviceId: string }
+      ): void => handler(payload);
+      ipcRenderer.on(IPC.hibernation.requestUnmount, wrapped);
+      return () =>
+        ipcRenderer.removeListener(IPC.hibernation.requestUnmount, wrapped);
+    }
   }
 } as const;
 

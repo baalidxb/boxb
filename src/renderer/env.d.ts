@@ -52,6 +52,20 @@ declare global {
         getLockedWorkspaceId: () => string | null;
         forceClose: () => void;
       };
+      hibernation: {
+        register: (payload: {
+          wcId: number;
+          partition: string;
+          serviceId: string;
+          hibernation: 'light' | 'aggressive';
+          isActive: boolean;
+        }) => void;
+        unregister: (payload: { wcId: number }) => void;
+        markActive: (payload: { wcId: number; isActive: boolean }) => void;
+        onRequestUnmount: (
+          handler: (payload: { serviceId: string }) => void
+        ) => () => void;
+      };
     };
   }
 }

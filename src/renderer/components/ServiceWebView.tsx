@@ -11,11 +11,36 @@ import { parseUnreadCount } from '../utils/parseUnreadCount';
 interface ServiceWebViewProps {
   service: Service;
   isActive: boolean;
+  // True when the per-window hibernation set contains this service AND the
+  // service is in aggressive mode. Causes the entire <webview> subtree to
+  // unmount; remount happens when wakeService removes it from the set.
+  aggressiveHibernated: boolean;
 }
 
-export function ServiceWebView({ service, isActive }: ServiceWebViewProps): JSX.Element {
+export function ServiceWebView({
+  service,
+  isActive,
+  aggressiveHibernated
+}: ServiceWebViewProps): JSX.Element | null {
+  if (aggressiveHibernated) {
+    // Aggressive hibernation: unmount entirely. Inner WebContents is
+    // destroyed; main's hibernation tracker drops the entry via the
+    // 'destroyed' handler. Re-mount happens when wakeService runs (typically
+    // from setActiveService).
+    return null;
+  }
+  return <ServiceWebViewInner service={service} isActive={isActive} />;
+}
+
+interface InnerProps {
+  service: Service;
+  isActive: boolean;
+}
+
+function ServiceWebViewInner({ service, isActive }: InnerProps): JSX.Element {
   const ref = useRef<WebviewTag | null>(null);
   const lastSeenCountRef = useRef<number>(0);
+  const wcIdRef = useRef<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [preloadPath, setPreloadPath] = useState<string | null>(null);
   const setUnreadCount = useServicesStore((s) => s.setUnreadCount);
@@ -86,6 +111,27 @@ export function ServiceWebView({ service, isActive }: ServiceWebViewProps): JSX.
     const onDomReady = (): void => {
       console.log(`${tag} dom-ready partition=${service.partition}`);
       registerPartitionOnce(service.partition);
+      // Register this webview with the main-side hibernation tracker.
+      // dom-ready is the right moment: the inner WebContents now exists and
+      // has an id we can address.
+      try {
+        const wcId = el.getWebContentsId();
+        wcIdRef.current = wcId;
+        // Read the LIVE active state from the store rather than the closed-
+        // over isActive prop; this listener was created when isActive may
+        // have been false even though the user already clicked the tile.
+        const liveActive =
+          useServicesStore.getState().activeServiceId === service.id;
+        window.boxb.hibernation.register({
+          wcId,
+          partition: service.partition,
+          serviceId: service.id,
+          hibernation: service.hibernation,
+          isActive: liveActive
+        });
+      } catch (err) {
+        console.error('[hibernation] register failed', err);
+      }
     };
 
     el.addEventListener('did-finish-load', onFinishLoad);
@@ -98,8 +144,41 @@ export function ServiceWebView({ service, isActive }: ServiceWebViewProps): JSX.
       el.removeEventListener('did-fail-load', onFailLoad);
       el.removeEventListener('page-title-updated', onTitleUpdate);
       el.removeEventListener('dom-ready', onDomReady);
+      // Tell main this webview is going away (unmount on aggressive
+      // hibernation, service removal, or window close). Main already
+      // listens for 'destroyed' on the WebContents itself, but emitting
+      // unregister on cleanup gives us a faster, deterministic signal.
+      const wcId = wcIdRef.current;
+      if (wcId !== null) {
+        try {
+          window.boxb.hibernation.unregister({ wcId });
+        } catch {
+          // best-effort
+        }
+        wcIdRef.current = null;
+      }
     };
-  }, [service.id, service.name, service.partition, preloadPath, setUnreadCount]);
+  }, [
+    service.id,
+    service.name,
+    service.partition,
+    service.hibernation,
+    preloadPath,
+    setUnreadCount
+  ]);
+
+  // Active-state effect: tells main when this webview becomes active /
+  // inactive. The main-side handler bumps lastActiveAt on activation and
+  // auto-thaws the page world if it was light-frozen.
+  useEffect(() => {
+    const wcId = wcIdRef.current;
+    if (wcId === null) return; // not yet registered (dom-ready hasn't fired)
+    try {
+      window.boxb.hibernation.markActive({ wcId, isActive });
+    } catch {
+      // best-effort
+    }
+  }, [isActive]);
 
   // Reloader effect: only the active webview registers its reload() so the
   // TopBar Refresh button targets the right one.
