@@ -12,6 +12,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 const TOAST_SHOW = 'toast:show';
 const TOAST_CLICK = 'toast:click';
 const TOAST_DISMISSED = 'toast:dismissed';
+const UPDATE_RESTART_NOW = 'update:restart-now';
+const UPDATE_DISMISS = 'update:dismiss';
 
 interface ToastPayload {
   id: string;
@@ -20,6 +22,7 @@ interface ToastPayload {
   iconDataUri?: string;
   serviceId?: string;
   timestamp: number;
+  kind?: 'notification' | 'action';
 }
 
 contextBridge.exposeInMainWorld('toastApi', {
@@ -31,5 +34,11 @@ contextBridge.exposeInMainWorld('toastApi', {
   },
   dismissed: (id: string): void => {
     ipcRenderer.send(TOAST_DISMISSED, { id });
+  },
+  updateRestart: (id: string): void => {
+    ipcRenderer.send(UPDATE_RESTART_NOW, { id });
+  },
+  updateDismiss: (id: string): void => {
+    ipcRenderer.send(UPDATE_DISMISS, { id });
   }
 });

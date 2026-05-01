@@ -8,6 +8,7 @@ import { lifecycle } from './lifecycle';
 import { dlog, clearDebugLog } from './debug-log';
 import { initHibernation } from './hibernation';
 import { initToastWindow } from './in-app-toast';
+import { initAutoUpdater } from './auto-update';
 
 // AUMID is harmless to set even though we no longer rely on Windows toast
 // resolution (Phase 6.5 retired that path — see src/main/in-app-toast.ts).
@@ -93,6 +94,8 @@ if (!gotLock) {
     dlog('APP:main-window-created');
     createTray(getMainWindow);
     dlog('APP:tray-created');
+    initAutoUpdater();
+    dlog('APP:auto-updater-initialized');
 
     app.on('activate', () => {
       dlog('APP:activate');

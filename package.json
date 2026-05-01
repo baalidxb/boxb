@@ -27,7 +27,9 @@
     "postinstall": "npm run generate-icons && npm run generate-tray-icons && npm run generate-app-icons"
   },
   "dependencies": {
+    "electron-log": "^5.4.3",
     "electron-store": "^10.0.0",
+    "electron-updater": "^6.8.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^4.5.5"

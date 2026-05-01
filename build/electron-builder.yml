@@ -8,7 +8,11 @@ files:
   - resources/tray/**
   - package.json
 asar: true
-publish: null
+publish:
+  provider: github
+  owner: baalidxb
+  repo: boxb
+  releaseType: release
 win:
   target: nsis
   icon: resources/icon.png

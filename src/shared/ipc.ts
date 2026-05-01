@@ -31,6 +31,14 @@ export const IPC = Object.freeze({
     // hide the window once the stack is empty.
     dismissed: 'toast:dismissed'
   },
+  update: {
+    // Toast renderer → main: user clicked "Restart now" on the update toast.
+    // Main calls autoUpdater.quitAndInstall() (only in packaged builds).
+    restartNow: 'update:restart-now',
+    // Toast renderer → main: user clicked "Later". Main hides the toast;
+    // electron-updater's autoInstallOnAppQuit handles install on natural quit.
+    dismiss: 'update:dismiss'
+  },
   hibernation: {
     // Renderer → main: report a webview's wcId + partition + service id +
     // hibernation mode + initial active state. The main-side tracker uses

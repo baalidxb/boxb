@@ -16,6 +16,10 @@ const TOAST_WINDOW_HEIGHT = 560;
 const SCREEN_MARGIN_PX = 12;
 const MAX_VISIBLE_TOASTS = 5;
 const AUTO_DISMISS_MS = 5000;
+// Action toasts (e.g. "update ready, restart?") stay visible much longer so
+// the user can see them after stepping away from the desk. They still auto-
+// hide eventually so a forgotten one doesn't camp on screen forever.
+const ACTION_AUTO_DISMISS_MS = 5 * 60 * 1000;
 
 interface ShowOptions {
   id: string;
@@ -23,6 +27,12 @@ interface ShowOptions {
   body: string;
   iconUrl?: string | undefined;
   onClick: () => void;
+}
+
+interface ActionToastOptions {
+  id: string;
+  title: string;
+  body: string;
 }
 
 let toastWindow: BrowserWindow | null = null;
@@ -36,6 +46,7 @@ interface ShowPayload {
   body: string;
   iconUrl?: string | undefined;
   timestamp: number;
+  kind?: 'notification' | 'action';
 }
 
 const TOAST_HTML = `<!doctype html>
@@ -151,6 +162,39 @@ const TOAST_HTML = `<!doctype html>
     padding-left: 6px;
     padding-top: 1px;
   }
+  .toast.action {
+    cursor: default;
+  }
+  .toast.action .actions {
+    grid-row: 3;
+    grid-column: 2 / span 2;
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .toast.action .btn {
+    pointer-events: auto;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid #2a2a2a;
+    background: #1a1a1a;
+    color: #d4d4d4;
+    transition: filter 120ms ease-out, background 120ms ease-out;
+  }
+  .toast.action .btn:hover {
+    filter: brightness(1.2);
+  }
+  .toast.action .btn-primary {
+    background: #D4AF37;
+    color: #000;
+    border-color: #D4AF37;
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
@@ -188,6 +232,8 @@ const TOAST_HTML = `<!doctype html>
     }
 
     function add(payload) {
+      var isAction = payload.kind === 'action';
+
       // Cap visible count by auto-dismissing the oldest before adding.
       while (live.size >= ${MAX_VISIBLE_TOASTS}) {
         var oldestId = null;
@@ -203,23 +249,47 @@ const TOAST_HTML = `<!doctype html>
       }
 
       var el = document.createElement('div');
-      el.className = 'toast';
+      el.className = 'toast' + (isAction ? ' action' : '');
       el.setAttribute('role', 'alert');
       var iconsHtml = '<div class="icons">' + BRAND_SVG;
-      if (payload.iconUrl) {
+      if (!isAction && payload.iconUrl) {
         iconsHtml += '<img class="avatar" src="' + escapeAttr(payload.iconUrl) + '" alt="">';
       }
       iconsHtml += '</div>';
-      el.innerHTML =
-        iconsHtml +
-        '<div class="title">' + escapeText(payload.title || 'BoxB') + '</div>' +
-        '<div class="time">now</div>' +
-        '<div class="body">' + escapeText(payload.body || '') + '</div>';
+      var titleHtml = '<div class="title">' + escapeText(payload.title || 'BoxB') + '</div>';
+      var timeHtml = isAction ? '' : '<div class="time">now</div>';
+      var bodyHtml = '<div class="body">' + escapeText(payload.body || '') + '</div>';
+      var actionsHtml = isAction
+        ? '<div class="actions">'
+          + '<button type="button" class="btn btn-later">Later</button>'
+          + '<button type="button" class="btn btn-primary btn-restart">Restart</button>'
+          + '</div>'
+        : '';
+      el.innerHTML = iconsHtml + titleHtml + timeHtml + bodyHtml + actionsHtml;
 
-      el.addEventListener('click', function () {
-        try { window.toastApi.click(payload.id); } catch (e) {}
-        dismiss(payload.id);
-      });
+      if (isAction) {
+        var restartBtn = el.querySelector('.btn-restart');
+        var laterBtn = el.querySelector('.btn-later');
+        if (restartBtn) {
+          restartBtn.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            try { window.toastApi.updateRestart(payload.id); } catch (e) {}
+            dismiss(payload.id);
+          });
+        }
+        if (laterBtn) {
+          laterBtn.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            try { window.toastApi.updateDismiss(payload.id); } catch (e) {}
+            dismiss(payload.id);
+          });
+        }
+      } else {
+        el.addEventListener('click', function () {
+          try { window.toastApi.click(payload.id); } catch (e) {}
+          dismiss(payload.id);
+        });
+      }
 
       stack.appendChild(el);
       // Force layout, then animate in.
@@ -227,12 +297,13 @@ const TOAST_HTML = `<!doctype html>
       el.classList.add('in');
 
       var timeEl = el.querySelector('.time');
+      var dismissMs = isAction ? ${ACTION_AUTO_DISMISS_MS} : ${AUTO_DISMISS_MS};
       var entry = {
         el: el,
         payload: payload,
         timeEl: timeEl,
-        dismissTimer: setTimeout(function () { dismiss(payload.id); }, ${AUTO_DISMISS_MS}),
-        tickTimer: setInterval(function () {
+        dismissTimer: setTimeout(function () { dismiss(payload.id); }, dismissMs),
+        tickTimer: isAction ? null : setInterval(function () {
           if (timeEl) timeEl.textContent = relTime(payload.timestamp);
         }, 5000)
       };
@@ -372,7 +443,8 @@ export function showToast(opts: ShowOptions): void {
     title: opts.title,
     body: opts.body,
     iconUrl: opts.iconUrl,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    kind: 'notification'
   };
   dlog('TOAST:show', {
     id: opts.id,
@@ -386,3 +458,32 @@ export function showToast(opts: ShowOptions): void {
     pendingShows.push(payload);
   }
 }
+
+// Action toasts have buttons (Restart / Later) instead of a whole-toast click
+// handler. Currently used only by the auto-updater; the toast renderer wires
+// the buttons directly to update:* IPC channels, so no onClick callback is
+// stored on the main side.
+export function showActionToast(opts: ActionToastOptions): void {
+  if (!toastWindow) {
+    dlog('TOAST:action-show-before-init', { id: opts.id });
+    return;
+  }
+  const payload: ShowPayload = {
+    id: opts.id,
+    title: opts.title,
+    body: opts.body,
+    timestamp: Date.now(),
+    kind: 'action'
+  };
+  dlog('TOAST:action-show', {
+    id: opts.id,
+    title: opts.title,
+    bodyLen: opts.body.length
+  });
+  if (rendererReady) {
+    sendToRenderer(payload);
+  } else {
+    pendingShows.push(payload);
+  }
+}
+
