@@ -1,8 +1,25 @@
+import { useEffect, useState } from 'react';
 import { useServicesStore } from '../store/services';
 import { Logo } from './Logo';
 
 export function EmptyState(): JSX.Element {
   const openAddModal = useServicesStore((s) => s.openAddModal);
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    window.boxb.app
+      .version()
+      .then((v) => {
+        if (!cancelled) setVersion(v);
+      })
+      .catch(() => {
+        // Version display is decorative — silently skip on failure.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center h-full w-full bg-bg">
@@ -21,6 +38,9 @@ export function EmptyState(): JSX.Element {
       >
         Add an app
       </button>
+      {version && (
+        <div className="mt-[20px] text-[11px] text-muted font-mono">v{version}</div>
+      )}
     </div>
   );
 }

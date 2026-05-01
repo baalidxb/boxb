@@ -585,6 +585,11 @@ export function ensureWorkspacesInitialized(): void {
   const orphanedServices = state.services.some((s) => !s.workspaceId);
   const missingDefaultName = state.services.some((s) => !s.defaultName);
   const missingHibernation = state.services.some((s) => !s.hibernation);
+  // v0.1.0 shipped catalog iconUrls as root-absolute paths ("/icons/foo.svg")
+  // which 404 under the file:// protocol used by the packaged renderer. v0.1.1
+  // switched to relative ("./icons/..."); rewrite any persisted entries that
+  // still hold the old form.
+  const legacyIconUrls = state.services.some((s) => s.iconUrl.startsWith('/icons/'));
   const noWorkspaces = state.workspaces.length === 0;
   const validIds = new Set(state.workspaces.map((w) => w.id));
   const invalidActive = !validIds.has(state.activeWorkspaceId);
@@ -593,6 +598,7 @@ export function ensureWorkspacesInitialized(): void {
     !orphanedServices &&
     !missingDefaultName &&
     !missingHibernation &&
+    !legacyIconUrls &&
     !noWorkspaces &&
     !invalidActive
   )
@@ -623,6 +629,9 @@ export function ensureWorkspacesInitialized(): void {
     if (!next.hibernation) {
       const cat = catalog.find((c) => c.id === next.catalogId);
       next = { ...next, hibernation: cat ? cat.hibernation : 'aggressive' };
+    }
+    if (next.iconUrl.startsWith('/icons/')) {
+      next = { ...next, iconUrl: '.' + next.iconUrl };
     }
     return next;
   });

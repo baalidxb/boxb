@@ -29,3 +29,8 @@ linux:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  # Force dashed filename so the on-disk artifact matches the URL
+  # electron-builder writes into latest.yml. Without this, the file is
+  # "BoxB Setup X.Y.Z.exe" but the manifest URL is "BoxB-Setup-X.Y.Z.exe",
+  # which would 404 on download.
+  artifactName: ${productName}-Setup-${version}.${ext}

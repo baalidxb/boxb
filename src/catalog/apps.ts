@@ -12,7 +12,7 @@ export const catalog: CatalogApp[] = [
     id: 'whatsapp-web',
     name: 'WhatsApp Web',
     url: 'https://web.whatsapp.com',
-    iconUrl: '/icons/whatsapp-web.svg',
+    iconUrl: './icons/whatsapp-web.svg',
     category: 'messaging',
     hibernation: 'light',
     userAgent: CHROME_UA
@@ -21,7 +21,7 @@ export const catalog: CatalogApp[] = [
     id: 'whatsapp-business',
     name: 'WhatsApp Business',
     url: 'https://web.whatsapp.com',
-    iconUrl: '/icons/whatsapp-business.svg',
+    iconUrl: './icons/whatsapp-business.svg',
     category: 'messaging',
     hibernation: 'light',
     userAgent: CHROME_UA
@@ -30,7 +30,7 @@ export const catalog: CatalogApp[] = [
     id: 'telegram-web',
     name: 'Telegram Web',
     url: 'https://web.telegram.org/k/',
-    iconUrl: '/icons/telegram-web.svg',
+    iconUrl: './icons/telegram-web.svg',
     category: 'messaging',
     hibernation: 'light'
   },
@@ -38,7 +38,7 @@ export const catalog: CatalogApp[] = [
     id: 'messenger',
     name: 'Messenger',
     url: 'https://www.messenger.com',
-    iconUrl: '/icons/messenger.svg',
+    iconUrl: './icons/messenger.svg',
     category: 'messaging',
     hibernation: 'light',
     userAgent: CHROME_UA
@@ -47,7 +47,7 @@ export const catalog: CatalogApp[] = [
     id: 'gmail',
     name: 'Gmail',
     url: 'https://mail.google.com',
-    iconUrl: '/icons/gmail.svg',
+    iconUrl: './icons/gmail.svg',
     category: 'email',
     hibernation: 'aggressive',
     userAgent: CHROME_UA
@@ -56,7 +56,7 @@ export const catalog: CatalogApp[] = [
     id: 'google-docs',
     name: 'Google Docs',
     url: 'https://docs.google.com',
-    iconUrl: '/icons/google-docs.svg',
+    iconUrl: './icons/google-docs.svg',
     category: 'productivity',
     hibernation: 'aggressive',
     userAgent: CHROME_UA
@@ -65,7 +65,7 @@ export const catalog: CatalogApp[] = [
     id: 'google-sheets',
     name: 'Google Sheets',
     url: 'https://sheets.google.com',
-    iconUrl: '/icons/google-sheets.svg',
+    iconUrl: './icons/google-sheets.svg',
     category: 'productivity',
     hibernation: 'aggressive',
     userAgent: CHROME_UA
@@ -74,7 +74,7 @@ export const catalog: CatalogApp[] = [
     id: 'google-drive',
     name: 'Google Drive',
     url: 'https://drive.google.com',
-    iconUrl: '/icons/google-drive.svg',
+    iconUrl: './icons/google-drive.svg',
     category: 'productivity',
     hibernation: 'aggressive',
     userAgent: CHROME_UA
@@ -83,7 +83,7 @@ export const catalog: CatalogApp[] = [
     id: 'notion',
     name: 'Notion',
     url: 'https://www.notion.so',
-    iconUrl: '/icons/notion.svg',
+    iconUrl: './icons/notion.svg',
     category: 'productivity',
     hibernation: 'aggressive',
     userAgent: CHROME_UA
@@ -92,7 +92,7 @@ export const catalog: CatalogApp[] = [
     id: 'trello',
     name: 'Trello',
     url: 'https://trello.com',
-    iconUrl: '/icons/trello.svg',
+    iconUrl: './icons/trello.svg',
     category: 'productivity',
     hibernation: 'aggressive',
     userAgent: CHROME_UA
@@ -101,7 +101,7 @@ export const catalog: CatalogApp[] = [
     id: 'google-keep',
     name: 'Google Keep',
     url: 'https://keep.google.com',
-    iconUrl: '/icons/google-keep.svg',
+    iconUrl: './icons/google-keep.svg',
     category: 'productivity',
     hibernation: 'aggressive',
     userAgent: CHROME_UA
@@ -110,7 +110,7 @@ export const catalog: CatalogApp[] = [
     id: 'slack',
     name: 'Slack',
     url: 'https://app.slack.com/client',
-    iconUrl: '/icons/slack.svg',
+    iconUrl: './icons/slack.svg',
     category: 'work',
     hibernation: 'light',
     userAgent: CHROME_UA
@@ -119,7 +119,7 @@ export const catalog: CatalogApp[] = [
     id: 'discord',
     name: 'Discord',
     url: 'https://discord.com/app',
-    iconUrl: '/icons/discord.svg',
+    iconUrl: './icons/discord.svg',
     category: 'work',
     hibernation: 'light',
     userAgent: CHROME_UA
@@ -128,7 +128,7 @@ export const catalog: CatalogApp[] = [
     id: 'chatgpt',
     name: 'ChatGPT',
     url: 'https://chat.openai.com',
-    iconUrl: '/icons/chatgpt.svg',
+    iconUrl: './icons/chatgpt.svg',
     category: 'ai',
     hibernation: 'aggressive'
   },
@@ -136,7 +136,7 @@ export const catalog: CatalogApp[] = [
     id: 'claude',
     name: 'Claude',
     url: 'https://claude.ai',
-    iconUrl: '/icons/claude.svg',
+    iconUrl: './icons/claude.svg',
     category: 'ai',
     hibernation: 'aggressive'
   },
@@ -144,7 +144,7 @@ export const catalog: CatalogApp[] = [
     id: 'gemini',
     name: 'Gemini',
     url: 'https://gemini.google.com',
-    iconUrl: '/icons/gemini.svg',
+    iconUrl: './icons/gemini.svg',
     category: 'ai',
     hibernation: 'aggressive',
     userAgent: CHROME_UA
@@ -153,7 +153,7 @@ export const catalog: CatalogApp[] = [
     id: 'perplexity',
     name: 'Perplexity',
     url: 'https://www.perplexity.ai',
-    iconUrl: '/icons/perplexity.svg',
+    iconUrl: './icons/perplexity.svg',
     category: 'ai',
     hibernation: 'aggressive'
   }
