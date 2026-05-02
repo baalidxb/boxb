@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useServicesStore } from '../store/services';
 import { catalog } from '../../catalog/apps';
 import {
@@ -76,6 +76,12 @@ export function AddAppModal(): JSX.Element | null {
   const [customName, setCustomName] = useState('');
   const [customIcon, setCustomIcon] = useState('');
   const [iconAutoFilled, setIconAutoFilled] = useState(false);
+  // When non-null, the custom-URL form was opened via a template catalog tile
+  // (e.g. Jira). The form runs in "template" sub-mode: icon and category come
+  // from the catalog entry, name is pre-filled, and the URL must have its
+  // templatePlaceholder substituted before save.
+  const [templateSource, setTemplateSource] = useState<CatalogApp | null>(null);
+  const urlInputRef = useRef<HTMLInputElement | null>(null);
 
   // Reset internal state when the modal closes.
   useEffect(() => {
@@ -86,12 +92,39 @@ export function AddAppModal(): JSX.Element | null {
       setCustomName('');
       setCustomIcon('');
       setIconAutoFilled(false);
+      setTemplateSource(null);
     }
   }, [isOpen]);
+
+  // When the template flow opens the custom form, auto-select the placeholder
+  // substring in the URL field so the user can immediately type to replace it.
+  // The input has autoFocus, so it's already focused on mount; we just need
+  // to set the selection range once the element is mounted.
+  useEffect(() => {
+    if (mode !== 'custom' || !templateSource?.templatePlaceholder) return;
+    const input = urlInputRef.current;
+    if (!input) return;
+    const placeholder = templateSource.templatePlaceholder;
+    const idx = customUrl.indexOf(placeholder);
+    if (idx < 0) return;
+    input.focus();
+    input.setSelectionRange(idx, idx + placeholder.length);
+  }, [mode, templateSource, customUrl]);
 
   if (!isOpen) return null;
 
   const handlePickCatalog = (app: CatalogApp): void => {
+    if (app.isTemplate) {
+      // Switch to custom URL mode pre-filled from the template entry. The
+      // user has to substitute templatePlaceholder before save.
+      setTemplateSource(app);
+      setCustomUrl(app.url);
+      setCustomName(app.name);
+      setCustomIcon(app.iconUrl);
+      setIconAutoFilled(false);
+      setMode('custom');
+      return;
+    }
     const id = addService({
       catalogId: app.id,
       name: app.name,
@@ -109,6 +142,9 @@ export function AddAppModal(): JSX.Element | null {
   };
 
   const handleUrlBlur = (): void => {
+    // Templates supply their own catalog icon — never replace it with a
+    // favicon lookup.
+    if (templateSource) return;
     if (!customUrl) return;
     if (!customIcon || iconAutoFilled) {
       const fav = faviconUrlFor(customUrl);
@@ -120,14 +156,35 @@ export function AddAppModal(): JSX.Element | null {
   };
 
   const customNameTrimmed = customName.trim();
+  const trimmedUrl = customUrl.trim();
+  const placeholderStillPresent =
+    !!templateSource?.templatePlaceholder &&
+    trimmedUrl.includes(templateSource.templatePlaceholder);
   const isCustomValid =
-    URL_RE.test(customUrl.trim()) &&
+    URL_RE.test(trimmedUrl) &&
     customNameTrimmed.length > 0 &&
-    customNameTrimmed.length <= 40;
+    customNameTrimmed.length <= 40 &&
+    !placeholderStillPresent;
 
   const handleAddCustom = (): void => {
     if (!isCustomValid) return;
-    const url = customUrl.trim();
+    const url = trimmedUrl;
+    if (templateSource) {
+      // Template entries inherit metadata from the catalog source so the
+      // resulting service is indistinguishable from a one-click catalog add,
+      // except the URL is the user's customized form.
+      const id = addService({
+        catalogId: templateSource.id,
+        name: customNameTrimmed,
+        url,
+        iconUrl: templateSource.iconUrl,
+        hibernation: templateSource.hibernation,
+        ...(templateSource.userAgent ? { userAgent: templateSource.userAgent } : {})
+      });
+      setActiveService(id);
+      closeAddModal();
+      return;
+    }
     const iconUrl = customIcon.trim() || faviconUrlFor(url);
     const id = addService({
       catalogId: 'custom',
@@ -225,10 +282,25 @@ export function AddAppModal(): JSX.Element | null {
           </>
         ) : (
           <>
-            <h2 className="text-lg font-medium text-fg">Add custom URL</h2>
-            <p className="mt-1 text-[13px] text-muted">
-              Add any web app by URL. We&apos;ll grab the favicon for the icon.
-            </p>
+            <div className="flex items-center gap-3">
+              {templateSource && (
+                <img
+                  src={templateSource.iconUrl}
+                  alt=""
+                  className="w-9 h-9 rounded-full"
+                />
+              )}
+              <div>
+                <h2 className="text-lg font-medium text-fg">
+                  {templateSource ? `Add ${templateSource.name}` : 'Add custom URL'}
+                </h2>
+                <p className="mt-0.5 text-[13px] text-muted">
+                  {templateSource
+                    ? `Replace ${templateSource.templatePlaceholder ?? 'the placeholder'} with your ${templateSource.name} subdomain.`
+                    : "Add any web app by URL. We'll grab the favicon for the icon."}
+                </p>
+              </div>
+            </div>
 
             <div className="mt-5 space-y-4">
               <div>
@@ -237,6 +309,7 @@ export function AddAppModal(): JSX.Element | null {
                 </label>
                 <input
                   id="custom-url"
+                  ref={urlInputRef}
                   autoFocus
                   type="url"
                   value={customUrl}
@@ -246,9 +319,17 @@ export function AddAppModal(): JSX.Element | null {
                   className={[
                     'w-full px-3 py-2.5 rounded-lg text-sm text-fg placeholder:text-muted',
                     'bg-bg border-[0.5px] border-[#1A1A1A]',
-                    'focus:outline-none focus:ring-2 focus:ring-accent'
+                    'focus:outline-none focus:ring-2',
+                    placeholderStillPresent
+                      ? 'border-accent/60 focus:ring-accent'
+                      : 'focus:ring-accent'
                   ].join(' ')}
                 />
+                {placeholderStillPresent && templateSource?.templatePlaceholder && (
+                  <p className="mt-1 text-[11px] text-accent">
+                    Please replace &quot;{templateSource.templatePlaceholder}&quot; with your subdomain.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -270,32 +351,41 @@ export function AddAppModal(): JSX.Element | null {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-muted mb-1" htmlFor="custom-icon">
-                  Icon URL <span className="text-muted/70">(optional)</span>
-                </label>
-                <input
-                  id="custom-icon"
-                  type="url"
-                  value={customIcon}
-                  onChange={(e) => {
-                    setCustomIcon(e.target.value);
-                    setIconAutoFilled(false);
-                  }}
-                  placeholder="auto-fetched from URL"
-                  className={[
-                    'w-full px-3 py-2.5 rounded-lg text-sm text-fg placeholder:text-muted',
-                    'bg-bg border-[0.5px] border-[#1A1A1A]',
-                    'focus:outline-none focus:ring-2 focus:ring-accent'
-                  ].join(' ')}
-                />
-              </div>
+              {!templateSource && (
+                <div>
+                  <label className="block text-xs font-medium text-muted mb-1" htmlFor="custom-icon">
+                    Icon URL <span className="text-muted/70">(optional)</span>
+                  </label>
+                  <input
+                    id="custom-icon"
+                    type="url"
+                    value={customIcon}
+                    onChange={(e) => {
+                      setCustomIcon(e.target.value);
+                      setIconAutoFilled(false);
+                    }}
+                    placeholder="auto-fetched from URL"
+                    className={[
+                      'w-full px-3 py-2.5 rounded-lg text-sm text-fg placeholder:text-muted',
+                      'bg-bg border-[0.5px] border-[#1A1A1A]',
+                      'focus:outline-none focus:ring-2 focus:ring-accent'
+                    ].join(' ')}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setMode('catalog')}
+                onClick={() => {
+                  setMode('catalog');
+                  setTemplateSource(null);
+                  setCustomUrl('');
+                  setCustomName('');
+                  setCustomIcon('');
+                  setIconAutoFilled(false);
+                }}
                 className={[
                   'px-4 py-2 rounded-lg text-sm font-medium',
                   'bg-bg text-fg border-[0.5px] border-[#1A1A1A]',

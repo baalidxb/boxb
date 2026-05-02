@@ -61,6 +61,18 @@ const manualOverrides: Record<string, ManualOverride> = {
       '<circle cx="50" cy="50" r="11" fill="#0F0F0F" stroke="#FFFFFF" stroke-width="1.5"/>' +
       '<text x="50" y="55" text-anchor="middle" font-family="-apple-system, Segoe UI, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF">B</text>' +
       '</svg>'
+  },
+  // simple-icons doesn't ship a plain Outlook brand mark (only the broader
+  // Microsoft 365 set), so we render a generic envelope glyph on Outlook
+  // blue. Recognizable as mail without being a copy of the trademarked O.
+  outlook: {
+    fill: '#0078D4',
+    svg:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
+      '<circle cx="32" cy="32" r="32" fill="#0078D4"/>' +
+      '<rect x="18" y="22" width="28" height="20" rx="2" fill="#FFFFFF"/>' +
+      '<path d="M18 24 L32 35 L46 24" stroke="#0078D4" stroke-width="2.5" fill="none" stroke-linejoin="round"/>' +
+      '</svg>'
   }
 };
 
@@ -82,7 +94,14 @@ const slugMap: Array<{ id: string; slugs: string[] }> = [
   { id: 'chatgpt',           slugs: ['chatgpt', 'openai'] },
   { id: 'claude',            slugs: ['claude', 'anthropic'] },
   { id: 'gemini',            slugs: ['googlegemini'] },
-  { id: 'perplexity',        slugs: ['perplexity'] }
+  { id: 'perplexity',        slugs: ['perplexity'] },
+  { id: 'instagram',         slugs: ['instagram'] },
+  { id: 'facebook',          slugs: ['facebook'] },
+  { id: 'outlook',           slugs: [] },
+  { id: 'github',            slugs: ['github'] },
+  { id: 'gitlab',            slugs: ['gitlab'] },
+  { id: 'linear',            slugs: ['linear'] },
+  { id: 'jira',              slugs: ['jira', 'jirasoftware'] }
 ];
 
 function exportNameForSlug(slug: string): string {

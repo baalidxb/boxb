@@ -156,5 +156,68 @@ export const catalog: CatalogApp[] = [
     iconUrl: './icons/perplexity.svg',
     category: 'ai',
     hibernation: 'aggressive'
+  },
+  {
+    id: 'instagram',
+    name: 'Instagram',
+    url: 'https://www.instagram.com/',
+    iconUrl: './icons/instagram.svg',
+    category: 'social',
+    hibernation: 'aggressive',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'facebook',
+    name: 'Facebook',
+    url: 'https://www.facebook.com/',
+    iconUrl: './icons/facebook.svg',
+    category: 'social',
+    hibernation: 'aggressive',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'outlook',
+    name: 'Outlook',
+    url: 'https://outlook.live.com/owa/',
+    iconUrl: './icons/outlook.svg',
+    category: 'email',
+    hibernation: 'light',
+    userAgent: CHROME_UA
+  },
+  {
+    id: 'github',
+    name: 'GitHub',
+    url: 'https://github.com/',
+    iconUrl: './icons/github.svg',
+    category: 'developer',
+    hibernation: 'aggressive'
+  },
+  {
+    id: 'gitlab',
+    name: 'GitLab',
+    url: 'https://gitlab.com/',
+    iconUrl: './icons/gitlab.svg',
+    category: 'developer',
+    hibernation: 'aggressive'
+  },
+  {
+    id: 'linear',
+    name: 'Linear',
+    url: 'https://linear.app/',
+    iconUrl: './icons/linear.svg',
+    category: 'developer',
+    hibernation: 'aggressive'
+  },
+  {
+    id: 'jira',
+    name: 'Jira',
+    // Template URL — the user must replace YOUR-COMPANY with their Atlassian
+    // subdomain before save. AddAppModal enforces this via templatePlaceholder.
+    url: 'https://YOUR-COMPANY.atlassian.net/',
+    iconUrl: './icons/jira.svg',
+    category: 'developer',
+    hibernation: 'aggressive',
+    isTemplate: true,
+    templatePlaceholder: 'YOUR-COMPANY'
   }
 ];
