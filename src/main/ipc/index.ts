@@ -6,6 +6,7 @@ import { ElectronStoreAdapter } from '../storage/electron-store-adapter';
 import { dlog } from '../debug-log';
 import { createSecondaryWindow } from '../window';
 import { getAllWindows } from '../windows';
+import { lifecycle } from '../lifecycle';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -13,6 +14,15 @@ export function registerIpcHandlers(): ElectronStoreAdapter {
   const storage = new ElectronStoreAdapter();
 
   ipcMain.handle(IPC.app.version, () => app.getVersion());
+
+  // Phase 9.2: full quit triggered from the command bar's quit action.
+  // Same effect as the tray "Quit BoxB" item — flag isQuitting so the
+  // window close handlers skip their hide-to-tray fallback.
+  ipcMain.on(IPC.app.quit, () => {
+    dlog('IPC:app-quit');
+    lifecycle.isQuitting = true;
+    app.quit();
+  });
 
   ipcMain.handle(IPC.storage.get, (_event, key: string) => storage.get(key));
   ipcMain.handle(IPC.storage.set, (_event, key: string, value: unknown) =>

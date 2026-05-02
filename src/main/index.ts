@@ -3,13 +3,16 @@ import { createMainWindow, getMainWindow } from './window';
 import { getAllWindows } from './windows';
 import { registerIpcHandlers } from './ipc';
 import { initPermissions } from './permissions';
-import { createTray } from './tray';
+import { createTray, setOpenExportModal, setOpenSetApiKeyModal } from './tray';
 import { lifecycle } from './lifecycle';
 import { dlog, clearDebugLog } from './debug-log';
 import { initHibernation } from './hibernation';
 import { initToastWindow } from './in-app-toast';
 import { initAutoUpdater } from './auto-update';
 import { registerTerminalIpc, killAllPtys } from './terminal';
+import { detectLaunchConfig, registerManagedIpc } from './managed-config';
+import { registerAiIpc } from './command-bar-ai';
+import { IPC } from '@shared/ipc';
 
 // AUMID is harmless to set even though we no longer rely on Windows toast
 // resolution (Phase 6.5 retired that path — see src/main/in-app-toast.ts).
@@ -94,6 +97,14 @@ if (!gotLock) {
     dlog('APP:ipc-handlers-registered');
     registerTerminalIpc();
     dlog('APP:terminal-ipc-registered');
+    registerManagedIpc();
+    dlog('APP:managed-ipc-registered');
+    registerAiIpc();
+    dlog('APP:ai-ipc-registered');
+    // Detect any pending managed config BEFORE the main window mounts so
+    // the renderer's first managed:check-launch-config call sees it.
+    detectLaunchConfig();
+    dlog('APP:launch-config-detected');
     initPermissions(storage, getMainWindow);
     dlog('APP:permissions-initialized');
     initHibernation();
@@ -102,6 +113,21 @@ if (!gotLock) {
     dlog('APP:main-window-created');
     createTray(getMainWindow);
     dlog('APP:tray-created');
+    // Wire the tray export item to a renderer message. Tray menu items run
+    // in main, but the export modal lives in the renderer; this bridges.
+    setOpenExportModal(() => {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(IPC.managed.openExportModal);
+      }
+    });
+    // Same bridge for Phase 9.2 "Set Anthropic API Key…" tray item.
+    setOpenSetApiKeyModal(() => {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(IPC.ai.openSetApiKeyModal);
+      }
+    });
     initAutoUpdater();
     dlog('APP:auto-updater-initialized');
 

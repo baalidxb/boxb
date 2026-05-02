@@ -1,4 +1,5 @@
 import { useServicesStore } from '../store/services';
+import { useManagedStore } from '../store/managed';
 import { reloadActiveWebview } from '../lib/webview-controller';
 import { GearIcon, RefreshIcon } from './Icons';
 
@@ -7,10 +8,14 @@ export function TopBar(): JSX.Element {
   const services = useServicesStore((s) => s.services);
   const workspaces = useServicesStore((s) => s.workspaces);
   const lockedWorkspaceId = useServicesStore((s) => s.lockedWorkspaceId);
+  const isManaged = useManagedStore((s) => s.isManaged);
+  const managedConfigName = useManagedStore((s) => s.configName);
+  const managedHydrated = useManagedStore((s) => s.hydrated);
   const active = services.find((s) => s.id === activeServiceId);
   const lockedWs = lockedWorkspaceId
     ? workspaces.find((w) => w.id === lockedWorkspaceId) ?? null
     : null;
+  const showManagedPill = managedHydrated && isManaged;
 
   const buttonClass = [
     'flex items-center justify-center text-muted rounded',
@@ -51,6 +56,21 @@ export function TopBar(): JSX.Element {
     <header className="h-11 w-full shrink-0 bg-surface border-b-[0.5px] border-b-[#1A1A1A] flex items-center justify-between pl-4 pr-4">
       <div className="text-sm font-medium truncate">{title}</div>
       <div className="flex items-center gap-3">
+        {showManagedPill && (
+          <div
+            // Subtle gold pill with leading dot. Communicates "this BoxB
+            // is admin-managed" without screaming. Hover shows config name.
+            title={managedConfigName ? `Managed: ${managedConfigName}` : 'Managed install'}
+            className={[
+              'flex items-center gap-1.5 px-2.5 py-1 rounded-full',
+              'text-[10px] font-semibold tracking-wider uppercase',
+              'text-accent/80 bg-accent/10 border-[0.5px] border-accent/30'
+            ].join(' ')}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+            <span>Managed</span>
+          </div>
+        )}
         <button
           type="button"
           aria-label="Refresh"

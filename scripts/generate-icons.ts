@@ -73,6 +73,18 @@ const manualOverrides: Record<string, ManualOverride> = {
       '<rect x="18" y="22" width="28" height="20" rx="2" fill="#FFFFFF"/>' +
       '<path d="M18 24 L32 35 L46 24" stroke="#0078D4" stroke-width="2.5" fill="none" stroke-linejoin="round"/>' +
       '</svg>'
+  },
+  // Microsoft requested removal of all their brand icons from simple-
+  // icons (~early 2024). Same situation as Outlook — hand-draw a clean
+  // mark on the Teams brand purple. Bold serif T centered on a circle:
+  // recognizable, doesn't copy the trademarked T-in-speech-bubble glyph.
+  'microsoft-teams': {
+    fill: '#6264A7',
+    svg:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
+      '<circle cx="32" cy="32" r="32" fill="#6264A7"/>' +
+      '<text x="32" y="44" text-anchor="middle" font-family="Georgia, Cambria, serif" font-size="34" font-weight="700" fill="#FFFFFF">T</text>' +
+      '</svg>'
   }
 };
 
@@ -91,6 +103,7 @@ const slugMap: Array<{ id: string; slugs: string[] }> = [
   { id: 'google-keep',       slugs: ['googlekeep'] },
   { id: 'slack',             slugs: ['slack'] },
   { id: 'discord',           slugs: ['discord'] },
+  { id: 'microsoft-teams',   slugs: [] },
   { id: 'chatgpt',           slugs: ['chatgpt', 'openai'] },
   { id: 'claude',            slugs: ['claude', 'anthropic'] },
   { id: 'gemini',            slugs: ['googlegemini'] },

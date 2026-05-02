@@ -27,6 +27,7 @@ declare global {
     boxb: {
       app: {
         version: () => Promise<string>;
+        quit: () => void;
       };
       storage: {
         get<T = unknown>(key: string): Promise<T | undefined>;
@@ -88,6 +89,49 @@ declare global {
         ) => () => void;
         getPanelState: () => Promise<{ open: boolean; height: number }>;
         setPanelState: (payload: { open: boolean; height: number }) => void;
+      };
+      managed: {
+        export: (payload: {
+          name: string;
+          services: unknown[];
+          workspaces: unknown[];
+        }) => Promise<{
+          ok: boolean;
+          path?: string;
+          cancelled?: boolean;
+          error?: string;
+        }>;
+        getState: () => Promise<{
+          isManaged: boolean;
+          configName: string | null;
+          importedAt: number | null;
+        }>;
+        setState: (payload: {
+          isManaged: boolean;
+          configName: string | null;
+          importedAt: number | null;
+        }) => Promise<void>;
+        checkLaunchConfig: () => Promise<unknown | null>;
+        applyConfig: () => Promise<void>;
+        cancelConfig: () => Promise<void>;
+        onOpenExportModal: (handler: () => void) => () => void;
+      };
+      ai: {
+        setApiKey: (key: string) => Promise<boolean>;
+        clearApiKey: () => Promise<void>;
+        hasApiKey: () => Promise<boolean>;
+        parseIntent: (req: {
+          query: string;
+          services: Array<{
+            id: string;
+            name: string;
+            catalogId: string;
+            workspaceId: string;
+          }>;
+          workspaces: Array<{ id: string; name: string }>;
+          isManaged: boolean;
+        }) => Promise<unknown | null>;
+        onOpenSetApiKeyModal: (handler: () => void) => () => void;
       };
     };
   }

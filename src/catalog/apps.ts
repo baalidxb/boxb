@@ -1,11 +1,21 @@
 import type { CatalogApp } from '@shared/catalog';
 
-// Phase 3.5 (deferred): Microsoft Teams (UA gating), Signal (no real web app),
-// Instagram & Facebook (anti-embedded-browser detection), Outlook (Microsoft
-// anti-bot on consumer outlook.live.com).
+// Phase 3.5 (deferred): Signal (no real web app). Instagram + Facebook
+// (anti-embedded-browser detection) shipped in Phase 8 with Chrome UA.
+// Outlook shipped in Phase 8 with Chrome UA + manual icon (simple-icons
+// dropped Microsoft brand icons). Microsoft Teams shipped in Phase 9.4
+// with Edge-suffix UA + manual icon for the same reason.
 
 const CHROME_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+// Edge-flavored Chrome UA. Microsoft properties (Teams, parts of Outlook
+// 365, OneDrive) sniff for the trailing `Edg/` token before serving the
+// full web client. Without it Teams typically falls back to a "use the
+// desktop app" page. Same string Rambox / Franz / Stack have used for
+// years for Teams compatibility.
+const EDGE_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0';
 
 export const catalog: CatalogApp[] = [
   {
@@ -123,6 +133,21 @@ export const catalog: CatalogApp[] = [
     category: 'work',
     hibernation: 'light',
     userAgent: CHROME_UA
+  },
+  {
+    id: 'microsoft-teams',
+    name: 'Microsoft Teams',
+    url: 'https://teams.microsoft.com/',
+    iconUrl: './icons/microsoft-teams.svg',
+    category: 'work',
+    // Light hibernation: Teams is a messenger-class service, the
+    // websocket needs to stay alive in the background to receive new-
+    // message notifications. Same treatment as Slack/Discord.
+    hibernation: 'light',
+    // Edge-suffix UA: Teams sniffs for `Edg/` and serves the full web
+    // client. With the plain Chrome UA it falls back to a "use the
+    // desktop app" splash. See EDGE_UA comment near the top.
+    userAgent: EDGE_UA
   },
   {
     id: 'chatgpt',

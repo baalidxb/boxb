@@ -20,7 +20,10 @@ const lockedWorkspaceId = readLockedWorkspaceId();
 
 const api = {
   app: {
-    version: (): Promise<string> => ipcRenderer.invoke(IPC.app.version)
+    version: (): Promise<string> => ipcRenderer.invoke(IPC.app.version),
+    quit: (): void => {
+      ipcRenderer.send(IPC.app.quit);
+    }
   },
   storage: {
     get: (key: string): Promise<unknown> => ipcRenderer.invoke(IPC.storage.get, key),
@@ -139,6 +142,50 @@ const api = {
       ipcRenderer.invoke(IPC.terminal.getPanelState),
     setPanelState: (payload: { open: boolean; height: number }): void => {
       ipcRenderer.send(IPC.terminal.setPanelState, payload);
+    }
+  },
+  managed: {
+    export: (payload: {
+      name: string;
+      services: unknown[];
+      workspaces: unknown[];
+    }): Promise<{ ok: boolean; path?: string; cancelled?: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.managed.export, payload),
+    getState: (): Promise<{
+      isManaged: boolean;
+      configName: string | null;
+      importedAt: number | null;
+    }> => ipcRenderer.invoke(IPC.managed.getState),
+    setState: (payload: {
+      isManaged: boolean;
+      configName: string | null;
+      importedAt: number | null;
+    }): Promise<void> => ipcRenderer.invoke(IPC.managed.setState, payload),
+    checkLaunchConfig: (): Promise<unknown | null> =>
+      ipcRenderer.invoke(IPC.managed.checkLaunchConfig),
+    applyConfig: (): Promise<void> => ipcRenderer.invoke(IPC.managed.applyConfig),
+    cancelConfig: (): Promise<void> => ipcRenderer.invoke(IPC.managed.cancelConfig),
+    onOpenExportModal: (handler: () => void): (() => void) => {
+      const wrapped = (): void => handler();
+      ipcRenderer.on(IPC.managed.openExportModal, wrapped);
+      return () => ipcRenderer.removeListener(IPC.managed.openExportModal, wrapped);
+    }
+  },
+  ai: {
+    setApiKey: (key: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.ai.setApiKey, key),
+    clearApiKey: (): Promise<void> => ipcRenderer.invoke(IPC.ai.clearApiKey),
+    hasApiKey: (): Promise<boolean> => ipcRenderer.invoke(IPC.ai.hasApiKey),
+    parseIntent: (req: {
+      query: string;
+      services: Array<{ id: string; name: string; catalogId: string; workspaceId: string }>;
+      workspaces: Array<{ id: string; name: string }>;
+      isManaged: boolean;
+    }): Promise<unknown | null> => ipcRenderer.invoke(IPC.ai.parseIntent, req),
+    onOpenSetApiKeyModal: (handler: () => void): (() => void) => {
+      const wrapped = (): void => handler();
+      ipcRenderer.on(IPC.ai.openSetApiKeyModal, wrapped);
+      return () => ipcRenderer.removeListener(IPC.ai.openSetApiKeyModal, wrapped);
     }
   }
 } as const;

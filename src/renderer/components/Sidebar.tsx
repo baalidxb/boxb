@@ -1,8 +1,9 @@
 import { useServicesStore } from '../store/services';
+import { useManagedStore } from '../store/managed';
 import { Logo } from './Logo';
 import { ServiceIcon } from './ServiceIcon';
 import { WorkspacePill } from './WorkspacePill';
-import { GearIcon, PlusIcon } from './Icons';
+import { GearIcon, LockIcon, PlusIcon } from './Icons';
 
 export function Sidebar(): JSX.Element {
   const services = useServicesStore((s) => s.services);
@@ -17,8 +18,14 @@ export function Sidebar(): JSX.Element {
   const openAddWorkspaceModal = useServicesStore((s) => s.openAddWorkspaceModal);
   const openAddModal = useServicesStore((s) => s.openAddModal);
   const setActiveService = useServicesStore((s) => s.setActiveService);
+  const isManaged = useManagedStore((s) => s.isManaged);
+  const managedHydrated = useManagedStore((s) => s.hydrated);
 
   const isLocked = lockedWorkspaceId !== null;
+  // Render the locked variant only after the managed store has hydrated —
+  // otherwise admin installs would briefly flash the lock badge between
+  // App mount and the IPC return (cosmetic but jarring).
+  const showLockedAdd = managedHydrated && isManaged;
   const orderedWorkspaces = [...workspaces].sort((a, b) => a.order - b.order);
   const visibleServices = services.filter(
     (s) => s.workspaceId === activeWorkspaceId
@@ -56,21 +63,25 @@ export function Sidebar(): JSX.Element {
                 onContextMenu={(x, y) => openWorkspaceContextMenu(w.id, x, y)}
               />
             ))}
-            <button
-              type="button"
-              onClick={openAddWorkspaceModal}
-              aria-label="Add workspace"
-              title="Add workspace"
-              className={[
-                'w-8 h-8 rounded-full flex items-center justify-center text-muted shrink-0',
-                'border-[0.5px] border-transparent',
-                'transition-all duration-150 ease-out',
-                'hover:text-accent hover:border-accent',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
-              ].join(' ')}
-            >
-              <PlusIcon size={16} />
-            </button>
+            {/* Add workspace hidden in managed mode — workspaces are
+                fixed by the admin's config. */}
+            {!showLockedAdd && (
+              <button
+                type="button"
+                onClick={openAddWorkspaceModal}
+                aria-label="Add workspace"
+                title="Add workspace"
+                className={[
+                  'w-8 h-8 rounded-full flex items-center justify-center text-muted shrink-0',
+                  'border-[0.5px] border-transparent',
+                  'transition-all duration-150 ease-out',
+                  'hover:text-accent hover:border-accent',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+                ].join(' ')}
+              >
+                <PlusIcon size={16} />
+              </button>
+            )}
           </div>
 
           <div className="border-t-[0.5px] border-t-[#1A1A1A] mt-[12px]" />
@@ -84,20 +95,42 @@ export function Sidebar(): JSX.Element {
       </div>
 
       <div className="flex flex-col items-center pb-[14px] gap-2">
-        <button
-          type="button"
-          onClick={openAddModal}
-          aria-label="Add app"
-          className={[
-            'w-10 h-10 rounded-lg flex items-center justify-center text-muted',
-            'border-[0.5px] border-transparent',
-            'transition-all duration-150 ease-out',
-            'hover:text-accent hover:border-accent',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
-          ].join(' ')}
-        >
-          <PlusIcon size={20} />
-        </button>
+        {showLockedAdd ? (
+          // Locked variant — visually present so users know this is where
+          // they'd normally add a service, with a tooltip explaining why
+          // it's unavailable. Click is intentionally a no-op.
+          <button
+            type="button"
+            aria-label="This BoxB is managed by your admin. Contact them to add services."
+            title="This BoxB is managed by your admin. Contact them to add services."
+            className={[
+              'relative w-10 h-10 rounded-lg flex items-center justify-center text-muted/60',
+              'border-[0.5px] border-[#1A1A1A] cursor-default',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+            ].join(' ')}
+          >
+            <PlusIcon size={20} />
+            <LockIcon
+              size={11}
+              className="absolute -bottom-[2px] -right-[2px] bg-surface rounded-full p-[1px] text-accent"
+            />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={openAddModal}
+            aria-label="Add app"
+            className={[
+              'w-10 h-10 rounded-lg flex items-center justify-center text-muted',
+              'border-[0.5px] border-transparent',
+              'transition-all duration-150 ease-out',
+              'hover:text-accent hover:border-accent',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+            ].join(' ')}
+          >
+            <PlusIcon size={20} />
+          </button>
+        )}
 
         <button
           type="button"

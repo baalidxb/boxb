@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { EmptyState } from './components/EmptyState';
@@ -11,12 +11,20 @@ import { ContextMenu, type ContextMenuItem } from './components/ContextMenu';
 import { ConfirmRemoveModal } from './components/ConfirmRemoveModal';
 import { RenameServiceModal } from './components/RenameServiceModal';
 import { TerminalPanel } from './components/TerminalPanel';
+import { ExportConfigModal } from './components/ExportConfigModal';
+import { ApplyManagedConfigModal } from './components/ApplyManagedConfigModal';
+import { CommandBar } from './components/CommandBar';
+import { SetApiKeyModal } from './components/SetApiKeyModal';
 import {
   applyBroadcastSnapshot,
   ensureWorkspacesInitialized,
   useServicesStore
 } from './store/services';
 import { useTerminalStore } from './store/terminal';
+import { useManagedStore } from './store/managed';
+import { useCommandBarStore } from './store/commandBar';
+import { catalog } from '../catalog/apps';
+import type { CommandBarAction, ManagedConfigFile } from '@shared/types';
 
 export default function App(): JSX.Element {
   const activeServiceId = useServicesStore((s) => s.activeServiceId);
@@ -35,6 +43,20 @@ export default function App(): JSX.Element {
   const requestDeleteWorkspace = useServicesStore((s) => s.requestDeleteWorkspace);
   const reorderWorkspaces = useServicesStore((s) => s.reorderWorkspaces);
   const openRenameService = useServicesStore((s) => s.openRenameService);
+  const isManaged = useManagedStore((s) => s.isManaged);
+
+  // Phase 9.1: per-window managed-mode UI state. Modal opens are local
+  // to this window — the export modal is admin-only and never appears in
+  // managed installs; the apply modal only appears at startup of a window
+  // that picked up a launch config.
+  const [exportOpen, setExportOpen] = useState(false);
+  const [pendingConfig, setPendingConfig] = useState<{
+    config: ManagedConfigFile;
+    isReplace: boolean;
+  } | null>(null);
+  // Phase 9.2: SetApiKeyModal opens via tray bridge (or rare in-app entry
+  // point later). Local state mirrors the modal-open pattern used above.
+  const [setApiKeyOpen, setSetApiKeyOpen] = useState(false);
 
   // Run idempotent migration once persistence has hydrated. Creates the
   // "Main" workspace if missing and assigns it to any orphan services. If
@@ -74,6 +96,157 @@ export default function App(): JSX.Element {
   useEffect(() => {
     void useTerminalStore.getState().hydrate();
   }, []);
+
+  // Phase 9.1: hydrate managed-mode state from boxb-managed.json, then
+  // check whether the main process detected a launch config. Order matters:
+  // we need the current managed state before deciding apply vs replace
+  // vs silent-skip (same name as already applied).
+  useEffect(() => {
+    let cancelled = false;
+    (async (): Promise<void> => {
+      await useManagedStore.getState().hydrate();
+      if (cancelled) return;
+      try {
+        const raw = (await window.boxb.managed.checkLaunchConfig()) as
+          | ManagedConfigFile
+          | null;
+        if (!raw || cancelled) return;
+        const current = useManagedStore.getState();
+        if (current.isManaged && current.configName === raw.name) {
+          // Identical name to the already-applied config — treat as a
+          // re-prompt artifact (e.g. file still in drop folder) and clear
+          // pending without bothering the user.
+          await window.boxb.managed.cancelConfig();
+          return;
+        }
+        setPendingConfig({
+          config: raw,
+          isReplace: current.isManaged
+        });
+      } catch {
+        // best effort — no modal if main isn't ready / IPC fails
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Tray "Export Managed Config…" → renderer opens the modal. Only the
+  // primary window receives this event (main targets getMainWindow()).
+  useEffect(() => {
+    return window.boxb.managed.onOpenExportModal(() => {
+      setExportOpen(true);
+    });
+  }, []);
+
+  // Phase 9.2: hydrate the command-bar AI-availability flag once on mount
+  // so the empty-state hint can choose between "Press Enter to ask AI"
+  // and the no-AI fallback message without an extra IPC roundtrip.
+  useEffect(() => {
+    void useCommandBarStore.getState().hydrate();
+  }, []);
+
+  // Tray "Set Anthropic API Key…" → opens the SetApiKeyModal in the
+  // primary window. Same bridge pattern as the export modal above.
+  useEffect(() => {
+    return window.boxb.ai.onOpenSetApiKeyModal(() => {
+      setSetApiKeyOpen(true);
+    });
+  }, []);
+
+  // Action executor: the command bar dispatches one of these per Enter.
+  // Lives in App.tsx so it can reach all the right stores; CommandBar
+  // itself stays presentation-only.
+  const executeCommand = (action: CommandBarAction): void => {
+    const svcState = useServicesStore.getState();
+    const term = useTerminalStore.getState();
+    switch (action.type) {
+      case 'open-service':
+        if (action.target) {
+          const svc = svcState.services.find((s) => s.id === action.target);
+          if (svc) {
+            // Switch workspace too if the service belongs to a different one.
+            if (svc.workspaceId && svc.workspaceId !== svcState.activeWorkspaceId) {
+              svcState.setActiveWorkspace(svc.workspaceId);
+            }
+            svcState.setActiveService(svc.id);
+          }
+        }
+        return;
+      case 'switch-workspace':
+        if (action.target) svcState.setActiveWorkspace(action.target);
+        return;
+      case 'toggle-terminal':
+        void term.toggle();
+        return;
+      case 'hide':
+        // Reuse existing tray hide path: closing the last visible window
+        // hides to tray. Simpler than adding a new IPC just for this.
+        try {
+          window.boxb.window.forceClose();
+        } catch {
+          // best effort
+        }
+        return;
+      case 'quit':
+        try {
+          window.boxb.app.quit();
+        } catch {
+          // best effort
+        }
+        return;
+      case 'add-custom':
+        if (!useManagedStore.getState().isManaged) {
+          svcState.openAddModal();
+        }
+        return;
+      case 'add-catalog-service': {
+        // Phase 9.2.1: one-step add from catalog. Defends against managed
+        // mode (rules already filter, but be safe) and against template
+        // catalog entries reaching here (Jira/Jenkins need URL fill-in
+        // via the modal, not a direct add).
+        if (useManagedStore.getState().isManaged) return;
+        if (!action.target) return;
+        const entry = catalog.find((c) => c.id === action.target);
+        if (!entry || entry.isTemplate) return;
+        const id = svcState.addService({
+          catalogId: entry.id,
+          name: entry.name,
+          iconUrl: entry.iconUrl,
+          url: entry.url,
+          hibernation: entry.hibernation,
+          ...(entry.userAgent ? { userAgent: entry.userAgent } : {})
+        });
+        svcState.setActiveService(id);
+        return;
+      }
+      case 'add-custom-url': {
+        if (useManagedStore.getState().isManaged) return;
+        if (!action.target) return;
+        const url = action.target;
+        let host = '';
+        try {
+          host = new URL(url).hostname.replace(/^www\./, '');
+        } catch {
+          // detectUrl already validated shape, but if the URL parses
+          // weird at execute time just bail rather than create a junk tile.
+          return;
+        }
+        if (!host) return;
+        const iconUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`;
+        const id = svcState.addService({
+          catalogId: 'custom',
+          name: host,
+          iconUrl,
+          url,
+          hibernation: 'aggressive'
+        });
+        svcState.setActiveService(id);
+        return;
+      }
+    }
+  };
 
   // Ref to the terminal panel root so we can answer "does the terminal have
   // focus right now" by checking document.activeElement containment. Only
@@ -139,10 +312,14 @@ export default function App(): JSX.Element {
         return;
       }
 
+      // Ctrl+K (Cmd+K on macOS): open the command bar. Replaces the
+      // Phase 3 behavior where Ctrl+K opened AddAppModal directly —
+      // "add custom URL" is now reachable via the bar's add-custom action.
       if (cmdOrCtrl && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
-        if (state.isAddModalOpen) state.closeAddModal();
-        else state.openAddModal();
+        const cmd = useCommandBarStore.getState();
+        if (cmd.open) cmd.close();
+        else cmd.open_();
         return;
       }
 
@@ -166,6 +343,14 @@ export default function App(): JSX.Element {
       }
 
       if (e.key === 'Escape') {
+        // Command bar gets first dibs — its own input also handles Esc,
+        // but if focus has slipped this is the safety net.
+        const cmd = useCommandBarStore.getState();
+        if (cmd.open) {
+          e.preventDefault();
+          cmd.close();
+          return;
+        }
         if (state.confirmRemoveFor) {
           e.preventDefault();
           state.cancelRemove();
@@ -264,7 +449,7 @@ export default function App(): JSX.Element {
     const isFirst = idx <= 0;
     const isLast = idx === ordered.length - 1;
     const isOnly = ordered.length <= 1;
-    return [
+    const items: ContextMenuItem[] = [
       {
         type: 'item',
         label: 'Open in new window',
@@ -272,22 +457,27 @@ export default function App(): JSX.Element {
           window.boxb.window.openNew(workspaceContextMenu.workspaceId);
           closeWorkspaceContextMenu();
         }
-      },
-      { type: 'divider' },
-      {
+      }
+    ];
+    // Phase 9.1: in managed mode the team member can't rename or delete
+    // admin-defined workspaces. Move Up/Down is also gated — workspace
+    // ordering is part of the locked layout.
+    if (!isManaged) {
+      items.push({ type: 'divider' });
+      items.push({
         type: 'item',
         label: 'Rename',
         onClick: () => openRenameWorkspace(workspaceContextMenu.workspaceId)
-      },
-      {
+      });
+      items.push({
         type: 'item',
         label: 'Delete',
         danger: true,
         disabled: isOnly,
         onClick: () => requestDeleteWorkspace(workspaceContextMenu.workspaceId)
-      },
-      { type: 'divider' },
-      {
+      });
+      items.push({ type: 'divider' });
+      items.push({
         type: 'item',
         label: 'Move Up',
         disabled: isFirst,
@@ -302,8 +492,8 @@ export default function App(): JSX.Element {
           reorderWorkspaces(next.map((w) => w.id));
           closeWorkspaceContextMenu();
         }
-      },
-      {
+      });
+      items.push({
         type: 'item',
         label: 'Move Down',
         disabled: isLast,
@@ -318,8 +508,9 @@ export default function App(): JSX.Element {
           reorderWorkspaces(next.map((w) => w.id));
           closeWorkspaceContextMenu();
         }
-      }
-    ];
+      });
+    }
+    return items;
   })();
 
   return (
@@ -355,7 +546,10 @@ export default function App(): JSX.Element {
       <AddWorkspaceModal />
       <RenameWorkspaceModal />
       <ConfirmDeleteWorkspaceModal />
-      {contextMenu && (
+      {/* Service right-click menu suppressed entirely in managed mode —
+          both Rename and Remove are admin-controlled, so an empty menu
+          would just be visual noise. */}
+      {contextMenu && !isManaged && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
@@ -386,6 +580,31 @@ export default function App(): JSX.Element {
       )}
       <ConfirmRemoveModal />
       <RenameServiceModal />
+      {/* Phase 9.1 export modal — admin only. The tray hides "Export
+          Managed Config…" once the install is managed, so this should
+          never open in a managed install, but the !isManaged guard is
+          defensive. */}
+      {!isManaged && (
+        <ExportConfigModal isOpen={exportOpen} onClose={() => setExportOpen(false)} />
+      )}
+      {/* Apply modal: shown once per launch when main detected a config
+          file (CLI flag, file association argv, or drop folder). */}
+      {pendingConfig && (
+        <ApplyManagedConfigModal
+          config={pendingConfig.config}
+          isReplace={pendingConfig.isReplace}
+          onClose={() => setPendingConfig(null)}
+        />
+      )}
+      {/* Phase 9.2 command bar — Ctrl+K toggle. Renders above all other
+          modals because it should be reachable even when one is up
+          (though pragmatically it won't be — most modals own focus). */}
+      <CommandBar onExecute={executeCommand} />
+      {/* SetApiKeyModal — admin-only, opened from tray. Hidden in
+          managed mode for the same reason the tray item is hidden. */}
+      {!isManaged && (
+        <SetApiKeyModal isOpen={setApiKeyOpen} onClose={() => setSetApiKeyOpen(false)} />
+      )}
     </div>
   );
 }

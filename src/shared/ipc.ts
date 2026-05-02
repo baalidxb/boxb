@@ -1,6 +1,11 @@
 export const IPC = Object.freeze({
   app: {
-    version: 'app:version'
+    version: 'app:version',
+    // Renderer → main: full process exit. Same effect as the tray
+    // "Quit BoxB" item; sets lifecycle.isQuitting so close handlers
+    // skip their hide-to-tray fallback. Used by the command bar's
+    // quit action.
+    quit: 'app:quit'
   },
   storage: {
     get: 'storage:get',
@@ -81,6 +86,49 @@ export const IPC = Object.freeze({
     getPanelState: 'terminal:get-panel-state',
     // Renderer → main: write persisted panel state. Debounced renderer-side.
     setPanelState: 'terminal:set-panel-state'
+  },
+  managed: {
+    // Renderer → main: open native save dialog and write a .boxb-config
+    // file containing the supplied snapshot. Returns { ok, path? } or
+    // { ok: false, cancelled: true } when the user dismisses the dialog.
+    export: 'managed:export',
+    // Renderer → main: read persisted ManagedState from boxb-managed.json.
+    // Renderer mirrors this into its store on App mount.
+    getState: 'managed:get-state',
+    // Renderer → main: write ManagedState (also rebuilds the tray menu so
+    // the export item disappears once an install becomes managed).
+    setState: 'managed:set-state',
+    // Renderer → main: read the pending config detected at launch (from
+    // --config CLI flag, argv[1] file association, or %APPDATA%/boxb/
+    // configs/ drop folder). Returns parsed config or null if none.
+    checkLaunchConfig: 'managed:check-launch-config',
+    // Renderer → main: confirm the pending config was applied. Main moves
+    // the source file to .applied/ so it doesn't re-prompt next launch.
+    applyConfig: 'managed:apply-config',
+    // Renderer → main: user dismissed the apply modal. Main clears the
+    // in-memory pending config; the source file stays in the drop folder
+    // so a subsequent launch re-prompts (admins can delete it manually).
+    cancelConfig: 'managed:cancel-config',
+    // Main → renderer: tray "Export Managed Config…" item was clicked;
+    // renderer should open the export modal. Sent only to the primary
+    // window — the modal is a per-window UI element.
+    openExportModal: 'managed:open-export-modal'
+  },
+  ai: {
+    // Renderer → main: write/read/clear the user's Anthropic API key.
+    // Stored as plain text in boxb-ai.json — see ai-config.ts for the
+    // documented limitation. Returns simple ok/booleans.
+    setApiKey: 'ai:set-api-key',
+    clearApiKey: 'ai:clear-api-key',
+    hasApiKey: 'ai:has-api-key',
+    // Renderer → main: ask the model to parse a natural-language query
+    // into a CommandBarAction. Returns null on no-key/network/parse error
+    // — UI falls back to "no match" silently.
+    parseIntent: 'ai:parse-intent',
+    // Main → renderer: tray "Set Anthropic API Key…" item was clicked;
+    // renderer should open the SetApiKeyModal. Same primary-window-only
+    // pattern as the managed-config export modal.
+    openSetApiKeyModal: 'ai:open-set-api-key-modal'
   }
 });
 

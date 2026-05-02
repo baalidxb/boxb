@@ -34,3 +34,21 @@ body {
   background-color: #1A1A1A;
   border-radius: 3px;
 }
+
+/* Phase 9.2: command bar entrance — backdrop fade + card scale-in. The
+   inner card inherits the same animation so they appear together; the
+   200ms duration matches the terminal panel for visual consistency. */
+@keyframes cmd-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes cmd-pop {
+  from { opacity: 0; transform: scale(0.97) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-cmd-fade {
+  animation: cmd-fade 180ms ease-out;
+}
+.animate-cmd-fade > div[role='dialog'] {
+  animation: cmd-pop 200ms ease-out;
+}

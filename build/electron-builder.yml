@@ -21,6 +21,16 @@ asarUnpack:
 # already verified to load under Electron 33 (see Phase 9 install notes).
 # Skip the auto-rebuild — using the as-shipped prebuild is correct here.
 npmRebuild: false
+# Phase 9.1: register the .boxb-config extension on the OS so double-
+# clicking a config file launches BoxB with the path as argv[1]. The
+# main process detects the path in detectLaunchConfig() and prompts the
+# Apply modal. No icon for v1 — Windows uses a default; admin tooling
+# can deliver configs via the drop folder anyway.
+fileAssociations:
+  - ext: boxb-config
+    name: BoxB Config
+    description: BoxB managed configuration
+    role: Editor
 publish:
   provider: github
   owner: baalidxb
