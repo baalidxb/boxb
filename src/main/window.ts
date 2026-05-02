@@ -5,6 +5,7 @@ import { lifecycle } from './lifecycle';
 import { loadWindowState, saveWindowState } from './window-state';
 import { dlog } from './debug-log';
 import { getAllWindows, registerWindow } from './windows';
+import { killPtysForWindow } from './terminal';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -151,7 +152,10 @@ export function createMainWindow(): BrowserWindow {
     }
   });
 
+  // Capture wcId now — webContents is unreachable inside the closed handler.
+  const wcIdMain = win.webContents.id;
   win.on('closed', () => {
+    killPtysForWindow(wcIdMain);
     if (primaryWindow === win) {
       const next = getAllWindows()[0] ?? null;
       primaryWindow = next;
@@ -210,6 +214,11 @@ export function createSecondaryWindow(opts?: {
       win.hide();
     }
     // else: allow destroy
+  });
+
+  const wcIdSecondary = win.webContents.id;
+  win.on('closed', () => {
+    killPtysForWindow(wcIdSecondary);
   });
 
   return win;

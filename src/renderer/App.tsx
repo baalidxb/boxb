@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { EmptyState } from './components/EmptyState';
@@ -10,11 +10,13 @@ import { ServiceWebView } from './components/ServiceWebView';
 import { ContextMenu, type ContextMenuItem } from './components/ContextMenu';
 import { ConfirmRemoveModal } from './components/ConfirmRemoveModal';
 import { RenameServiceModal } from './components/RenameServiceModal';
+import { TerminalPanel } from './components/TerminalPanel';
 import {
   applyBroadcastSnapshot,
   ensureWorkspacesInitialized,
   useServicesStore
 } from './store/services';
+import { useTerminalStore } from './store/terminal';
 
 export default function App(): JSX.Element {
   const activeServiceId = useServicesStore((s) => s.activeServiceId);
@@ -67,10 +69,75 @@ export default function App(): JSX.Element {
     });
   }, []);
 
+  // Phase 9: hydrate the terminal panel state from boxb-window.json. If the
+  // user had it open at last quit, this also spawns the first fresh tab.
+  useEffect(() => {
+    void useTerminalStore.getState().hydrate();
+  }, []);
+
+  // Ref to the terminal panel root so we can answer "does the terminal have
+  // focus right now" by checking document.activeElement containment. Only
+  // populated when the panel is open.
+  const terminalPanelRef = useRef<HTMLDivElement | null>(null);
+  const terminalHasFocus = (): boolean => {
+    const root = terminalPanelRef.current;
+    if (!root) return false;
+    const active = document.activeElement;
+    return active instanceof Node && root.contains(active);
+  };
+
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       const cmdOrCtrl = e.metaKey || e.ctrlKey;
       const state = useServicesStore.getState();
+      const term = useTerminalStore.getState();
+
+      // Ctrl+` / Ctrl+J: toggle the terminal panel. Two shortcuts because
+      // backtick is unreachable on some non-US keyboard layouts; Ctrl+J
+      // mirrors VS Code's terminal toggle and works on every layout. Both
+      // use e.code (KeyJ / Backquote) so layout remapping doesn't break
+      // them. Doesn't fire when a webview has focus — that's an existing
+      // platform limitation, same as Ctrl+K.
+      if (
+        cmdOrCtrl &&
+        !e.shiftKey &&
+        (e.code === 'Backquote' || e.code === 'KeyJ')
+      ) {
+        e.preventDefault();
+        void term.toggle();
+        return;
+      }
+      // Ctrl+Shift+` / Ctrl+Shift+J: new terminal tab. Only when the panel
+      // is open — otherwise we'd silently spawn an off-screen pty.
+      if (
+        cmdOrCtrl &&
+        e.shiftKey &&
+        (e.code === 'Backquote' || e.code === 'KeyJ')
+      ) {
+        if (!term.open) return;
+        e.preventDefault();
+        void term.addTab();
+        return;
+      }
+      // Ctrl+W: close current terminal tab — only if terminal panel is
+      // focused. Otherwise don't intercept (webviews handle it themselves).
+      if (cmdOrCtrl && !e.shiftKey && (e.key === 'w' || e.key === 'W')) {
+        if (!term.open || !term.activeTabId) return;
+        if (!terminalHasFocus()) return;
+        e.preventDefault();
+        term.closeTab(term.activeTabId);
+        return;
+      }
+      // Ctrl+Tab: cycle tabs forward (Ctrl+Shift+Tab cycles back). Only
+      // active when terminal has focus so we don't fight any future host-
+      // level tab cycling.
+      if (cmdOrCtrl && e.key === 'Tab') {
+        if (!term.open || term.tabs.length <= 1) return;
+        if (!terminalHasFocus()) return;
+        e.preventDefault();
+        term.cycleTab(e.shiftKey ? -1 : 1);
+        return;
+      }
 
       if (cmdOrCtrl && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
@@ -260,7 +327,10 @@ export default function App(): JSX.Element {
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0">
         <TopBar />
-        <div className="flex-1 relative">
+        {/* Services area shrinks to make room when the terminal panel
+            opens. min-h-0 lets flex-1 actually shrink below the natural
+            content size (here: zero, since children are absolute). */}
+        <div className="flex-1 min-h-0 relative">
           {services.map((s) => (
             <ServiceWebView
               key={s.id}
@@ -279,6 +349,7 @@ export default function App(): JSX.Element {
             </div>
           )}
         </div>
+        <TerminalPanel ref={terminalPanelRef} />
       </div>
       <AddAppModal />
       <AddWorkspaceModal />

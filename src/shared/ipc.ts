@@ -57,6 +57,30 @@ export const IPC = Object.freeze({
     // hibernate this service in this window; renderer should unmount the
     // <webview> for that service id (per-window, not broadcast).
     requestUnmount: 'hibernation:request-unmount'
+  },
+  terminal: {
+    // Renderer → main: spawn a new pty owned by the sender's webContents.
+    // Returns { ptyId, cwd, shell }. Main maps ptyId → owner wcId so a
+    // window-close can target only its own ptys.
+    create: 'terminal:create',
+    // Renderer → main: write input bytes to a pty.
+    write: 'terminal:write',
+    // Renderer → main: resize a pty (cols/rows in characters).
+    resize: 'terminal:resize',
+    // Renderer → main: kill a pty (SIGINT, then SIGKILL after 1s).
+    kill: 'terminal:kill',
+    // Main → renderer: pty merged stdout/stderr. Sent only to the owning
+    // webContents.
+    data: 'terminal:data',
+    // Main → renderer: pty exited (user typed `exit`, process died, or
+    // kill IPC fired). Renderer should remove the tab.
+    exit: 'terminal:exit',
+    // Renderer → main: read persisted panel state (open/height) from
+    // boxb-window.json. Returned at first window mount so the panel
+    // restores to whatever the user had at last quit.
+    getPanelState: 'terminal:get-panel-state',
+    // Renderer → main: write persisted panel state. Debounced renderer-side.
+    setPanelState: 'terminal:set-panel-state'
   }
 });
 

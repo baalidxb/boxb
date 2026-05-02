@@ -66,6 +66,29 @@ declare global {
           handler: (payload: { serviceId: string }) => void
         ) => () => void;
       };
+      terminal: {
+        create: (
+          req?: { cols?: number; rows?: number }
+        ) => Promise<
+          | { ok: true; ptyId: string; cwd: string; shell: string; title: string }
+          | { ok: false; error: string }
+        >;
+        write: (payload: { ptyId: string; data: string }) => void;
+        resize: (payload: { ptyId: string; cols: number; rows: number }) => void;
+        kill: (payload: { ptyId: string }) => void;
+        onData: (
+          handler: (payload: { ptyId: string; data: string }) => void
+        ) => () => void;
+        onExit: (
+          handler: (payload: {
+            ptyId: string;
+            exitCode: number;
+            signal: number | null;
+          }) => void
+        ) => () => void;
+        getPanelState: () => Promise<{ open: boolean; height: number }>;
+        setPanelState: (payload: { open: boolean; height: number }) => void;
+      };
     };
   }
 }

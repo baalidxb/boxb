@@ -9,6 +9,7 @@ import { dlog, clearDebugLog } from './debug-log';
 import { initHibernation } from './hibernation';
 import { initToastWindow } from './in-app-toast';
 import { initAutoUpdater } from './auto-update';
+import { registerTerminalIpc, killAllPtys } from './terminal';
 
 // AUMID is harmless to set even though we no longer rely on Windows toast
 // resolution (Phase 6.5 retired that path — see src/main/in-app-toast.ts).
@@ -35,6 +36,11 @@ if (!gotLock) {
   app.on('before-quit', () => {
     dlog('APP:before-quit');
     lifecycle.isQuitting = true;
+    // Best-effort kill of every pty before electron tears the renderers down.
+    // SIGINT first so PowerShell can release file handles, SIGKILL after a
+    // 1s grace inside killEntry. Without this, orphaned powershell.exe
+    // processes can survive after BoxB closes.
+    killAllPtys('app-before-quit');
   });
 
   // Web contents lifecycle instrumentation. Catches any webContents (host
@@ -86,6 +92,8 @@ if (!gotLock) {
     dlog('APP:toast-window-initialized');
     const storage = registerIpcHandlers();
     dlog('APP:ipc-handlers-registered');
+    registerTerminalIpc();
+    dlog('APP:terminal-ipc-registered');
     initPermissions(storage, getMainWindow);
     dlog('APP:permissions-initialized');
     initHibernation();

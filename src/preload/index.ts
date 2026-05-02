@@ -94,6 +94,52 @@ const api = {
       return () =>
         ipcRenderer.removeListener(IPC.hibernation.requestUnmount, wrapped);
     }
+  },
+  terminal: {
+    create: (
+      req: { cols?: number; rows?: number } = {}
+    ): Promise<
+      | { ok: true; ptyId: string; cwd: string; shell: string; title: string }
+      | { ok: false; error: string }
+    > => ipcRenderer.invoke(IPC.terminal.create, req),
+    write: (payload: { ptyId: string; data: string }): void => {
+      ipcRenderer.send(IPC.terminal.write, payload);
+    },
+    resize: (payload: { ptyId: string; cols: number; rows: number }): void => {
+      ipcRenderer.send(IPC.terminal.resize, payload);
+    },
+    kill: (payload: { ptyId: string }): void => {
+      ipcRenderer.send(IPC.terminal.kill, payload);
+    },
+    onData: (
+      handler: (payload: { ptyId: string; data: string }) => void
+    ): (() => void) => {
+      const wrapped = (
+        _e: IpcRendererEvent,
+        payload: { ptyId: string; data: string }
+      ): void => handler(payload);
+      ipcRenderer.on(IPC.terminal.data, wrapped);
+      return () => ipcRenderer.removeListener(IPC.terminal.data, wrapped);
+    },
+    onExit: (
+      handler: (payload: {
+        ptyId: string;
+        exitCode: number;
+        signal: number | null;
+      }) => void
+    ): (() => void) => {
+      const wrapped = (
+        _e: IpcRendererEvent,
+        payload: { ptyId: string; exitCode: number; signal: number | null }
+      ): void => handler(payload);
+      ipcRenderer.on(IPC.terminal.exit, wrapped);
+      return () => ipcRenderer.removeListener(IPC.terminal.exit, wrapped);
+    },
+    getPanelState: (): Promise<{ open: boolean; height: number }> =>
+      ipcRenderer.invoke(IPC.terminal.getPanelState),
+    setPanelState: (payload: { open: boolean; height: number }): void => {
+      ipcRenderer.send(IPC.terminal.setPanelState, payload);
+    }
   }
 } as const;
 

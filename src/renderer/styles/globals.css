@@ -1,3 +1,9 @@
+/* xterm core stylesheet — required for the terminal panel to render
+   correctly (positions the cursor + selection layers). Imported once
+   here so every TerminalTab inherits it. Must precede @tailwind
+   directives per CSS spec ordering rules. */
+@import 'xterm/css/xterm.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -14,4 +20,17 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tab strip overflow — thin scrollbar so a 10-tab row doesn't get a fat
+   gray default Windows scrollbar that breaks the panel's dark aesthetic. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #1A1A1A transparent;
+}
+.scrollbar-thin::-webkit-scrollbar { height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #1A1A1A;
+  border-radius: 3px;
 }

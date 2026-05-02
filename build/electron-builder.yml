@@ -8,6 +8,19 @@ files:
   - resources/tray/**
   - package.json
 asar: true
+# Phase 9: node-pty ships native binaries (.node + winpty.dll +
+# winpty-agent.exe). Native code can't run from inside an asar archive —
+# Electron must load it from a real file path. asarUnpack copies the
+# matching tree into <appDir>/resources/app.asar.unpacked/ alongside the
+# asar so the runtime resolves to the disk copy.
+asarUnpack:
+  - "**/node_modules/node-pty/**"
+# node-pty 1.1.0's npm tarball ships the prebuilt pty.node + winpty
+# binaries but its source tree is missing winpty/shared/GetCommitHash.bat,
+# so any from-source rebuild fails. The prebuilt binary is N-API and
+# already verified to load under Electron 33 (see Phase 9 install notes).
+# Skip the auto-rebuild — using the as-shipped prebuild is correct here.
+npmRebuild: false
 publish:
   provider: github
   owner: baalidxb
