@@ -219,5 +219,41 @@ export const catalog: CatalogApp[] = [
     hibernation: 'aggressive',
     isTemplate: true,
     templatePlaceholder: 'YOUR-COMPANY'
+  },
+  {
+    id: 'vercel',
+    name: 'Vercel',
+    url: 'https://vercel.com/dashboard',
+    iconUrl: './icons/vercel.svg',
+    category: 'developer',
+    hibernation: 'aggressive'
+  },
+  {
+    id: 'netlify',
+    name: 'Netlify',
+    url: 'https://app.netlify.com/',
+    iconUrl: './icons/netlify.svg',
+    category: 'developer',
+    hibernation: 'aggressive'
+  },
+  {
+    id: 'circleci',
+    name: 'CircleCI',
+    url: 'https://app.circleci.com/',
+    iconUrl: './icons/circleci.svg',
+    category: 'developer',
+    hibernation: 'aggressive'
+  },
+  {
+    id: 'jenkins',
+    name: 'Jenkins',
+    // Template — user replaces YOUR-JENKINS with their self-hosted hostname.
+    // Reuses the Phase 8 template flow (same code path as Jira).
+    url: 'https://YOUR-JENKINS.example.com/',
+    iconUrl: './icons/jenkins.svg',
+    category: 'developer',
+    hibernation: 'aggressive',
+    isTemplate: true,
+    templatePlaceholder: 'YOUR-JENKINS'
   }
 ];

@@ -101,7 +101,11 @@ const slugMap: Array<{ id: string; slugs: string[] }> = [
   { id: 'github',            slugs: ['github'] },
   { id: 'gitlab',            slugs: ['gitlab'] },
   { id: 'linear',            slugs: ['linear'] },
-  { id: 'jira',              slugs: ['jira', 'jirasoftware'] }
+  { id: 'jira',              slugs: ['jira', 'jirasoftware'] },
+  { id: 'vercel',            slugs: ['vercel'] },
+  { id: 'netlify',           slugs: ['netlify'] },
+  { id: 'circleci',          slugs: ['circleci'] },
+  { id: 'jenkins',           slugs: ['jenkins'] }
 ];
 
 function exportNameForSlug(slug: string): string {
