@@ -3,10 +3,11 @@ import { createMainWindow, getMainWindow } from './window';
 import { getAllWindows } from './windows';
 import { registerIpcHandlers } from './ipc';
 import { initPermissions } from './permissions';
+import { initDownloads } from './downloads';
 import { createTray } from './tray';
 import { lifecycle } from './lifecycle';
 import { dlog, clearDebugLog } from './debug-log';
-import { initHibernation } from './hibernation';
+import { initHibernation, getHibernationSnapshot } from './hibernation';
 import { initToastWindow } from './in-app-toast';
 import { initAutoUpdater } from './auto-update';
 
@@ -49,8 +50,35 @@ if (!gotLock) {
     }
     dlog('WC:created', { id: wc.id, type: wc.getType(), url });
     wc.on('did-create-window', (_window, details) =>
-      dlog('WC:did-create-window', { id: wc.id, url: details.url })
+      // BUG-2-DIAG: hib snapshot on popup creation — remove after v0.1.5 fix
+      dlog('WC:did-create-window', {
+        id: wc.id,
+        url: details.url,
+        hib: wc.getType() === 'webview' ? getHibernationSnapshot() : undefined
+      })
     );
+    // BUG-2-DIAG: capture nav redirects + upload-related console msgs from
+    // webviews to diagnose forward-to-individual failure. Remove after v0.1.5.
+    if (wc.getType() === 'webview') {
+      wc.on('will-navigate', (_e, navUrl) =>
+        dlog('BUG2:will-navigate', {
+          id: wc.id,
+          url: navUrl.substring(0, 200),
+          hib: getHibernationSnapshot()
+        })
+      );
+      wc.on('console-message', (_e, level, msg) => {
+        const m = msg.toLowerCase();
+        if (
+          m.includes('upload') ||
+          m.includes('forward') ||
+          m.includes('encrypt') ||
+          m.includes('e2e')
+        ) {
+          dlog('BUG2:console', { id: wc.id, level, msg: msg.substring(0, 200) });
+        }
+      });
+    }
     wc.on('render-process-gone', (_e, details) =>
       dlog('WC:render-process-gone', { id: wc.id, reason: details.reason, exitCode: details.exitCode })
     );
@@ -88,6 +116,8 @@ if (!gotLock) {
     dlog('APP:ipc-handlers-registered');
     initPermissions(storage, getMainWindow);
     dlog('APP:permissions-initialized');
+    initDownloads();
+    dlog('APP:downloads-initialized');
     initHibernation();
     dlog('APP:hibernation-initialized');
     createMainWindow();
