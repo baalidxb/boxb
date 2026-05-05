@@ -8,7 +8,13 @@ import { showToast } from './in-app-toast';
 const knownPartitions = new Set<string>();
 const webContentsPartition = new Map<number, string>();
 
-const ALLOWED_PERMISSIONS = new Set(['notifications', 'media', 'clipboard-read']);
+const ALLOWED_PERMISSIONS = new Set([
+  'notifications',
+  'media',
+  'clipboard-read',
+  'clipboard-write',
+  'clipboard-sanitized-write'
+]);
 
 function attachHandler(ses: Session, partition: string): void {
   ses.setPermissionRequestHandler((wc: WebContents, permission, callback) => {

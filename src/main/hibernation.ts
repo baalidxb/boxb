@@ -299,3 +299,19 @@ export function initHibernation(): void {
     scanMs: TYPING_CHECK_INTERVAL_MS
   });
 }
+
+// BUG-2-DIAG: remove after v0.1.5 fix
+export function getHibernationSnapshot(): Array<{
+  serviceId: string;
+  isActive: boolean;
+  lightFrozen: boolean;
+  idleSec: number;
+}> {
+  const now = Date.now();
+  return Array.from(entries.values()).map((e) => ({
+    serviceId: e.serviceId,
+    isActive: e.isActive,
+    lightFrozen: e.lightFrozen,
+    idleSec: Math.round((now - e.lastActiveAt) / 1000)
+  }));
+}
