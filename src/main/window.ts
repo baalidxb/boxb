@@ -5,6 +5,7 @@ import { lifecycle } from './lifecycle';
 import { loadWindowState, saveWindowState } from './window-state';
 import { dlog } from './debug-log';
 import { getAllWindows, registerWindow } from './windows';
+import { attachSpellCheckMenu } from './context-menu';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -29,7 +30,7 @@ function buildBaseWindow(opts: BaseOpts): BrowserWindow {
   const additionalArguments = opts.lockedWorkspaceId
     ? [`--locked-workspace-id=${opts.lockedWorkspaceId}`]
     : [];
-  return new BrowserWindow({
+  const win = new BrowserWindow({
     ...(typeof opts.x === 'number' ? { x: opts.x } : {}),
     ...(typeof opts.y === 'number' ? { y: opts.y } : {}),
     width: opts.width,
@@ -48,6 +49,8 @@ function buildBaseWindow(opts: BaseOpts): BrowserWindow {
       additionalArguments
     }
   });
+  attachSpellCheckMenu(win.webContents);
+  return win;
 }
 
 function loadContent(win: BrowserWindow): void {

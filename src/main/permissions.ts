@@ -4,6 +4,7 @@ import { ElectronStoreAdapter } from './storage/electron-store-adapter';
 import { IPC } from '@shared/ipc';
 import { dlog } from './debug-log';
 import { showToast } from './in-app-toast';
+import { attachSpellCheckMenu } from './context-menu';
 
 const knownPartitions = new Set<string>();
 const webContentsPartition = new Map<number, string>();
@@ -17,6 +18,13 @@ const ALLOWED_PERMISSIONS = new Set([
 ]);
 
 function attachHandler(ses: Session, partition: string): void {
+  // Force en-US dictionary so spell-check works the same on every OS locale.
+  try {
+    ses.setSpellCheckerLanguages(['en-US']);
+  } catch (err) {
+    dlog('SPELLCHECK:set-languages-failed', { partition, error: String(err) });
+  }
+
   ses.setPermissionRequestHandler((wc: WebContents, permission, callback) => {
     const granted = ALLOWED_PERMISSIONS.has(permission);
     dlog('PERMISSION:request', {
@@ -99,6 +107,7 @@ export function initPermissions(
       mappedPartition: mappedPartition ?? '(unknown)'
     });
     attachHandler(ses, mappedPartition ?? '(unknown)');
+    attachSpellCheckMenu(contents);
     contents.on('destroyed', () => {
       dlog('PERMISSION:webview-destroyed', { wcId: contents.id });
       webContentsPartition.delete(contents.id);
