@@ -222,6 +222,7 @@ function ServiceWebViewInner({ service, isActive }: InnerProps): JSX.Element {
         preload={preloadUrl}
         {...(service.userAgent ? { useragent: service.userAgent } : {})}
         allowpopups="true"
+        spellCheck
         style={{ width: '100%', height: '100%', display: 'flex' }}
       />
     </div>

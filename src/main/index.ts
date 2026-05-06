@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, session } from 'electron';
 import { createMainWindow, getMainWindow } from './window';
 import { getAllWindows } from './windows';
 import { registerIpcHandlers } from './ipc';
@@ -117,6 +117,13 @@ if (!gotLock) {
     });
     if (process.platform === 'win32') {
       dlog('APP:user-model-id-set', { id: 'app.boxb' });
+    }
+
+    try {
+      session.defaultSession.setSpellCheckerLanguages(['en-US']);
+      dlog('APP:default-spellcheck-en-us');
+    } catch (err) {
+      dlog('APP:default-spellcheck-failed', { error: String(err) });
     }
 
     initToastWindow();
