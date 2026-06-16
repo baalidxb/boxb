@@ -13,6 +13,8 @@ import { initAutoUpdater } from './auto-update';
 import { registerTerminalIpc, killAllPtys } from './terminal';
 import { detectLaunchConfig, registerManagedIpc } from './managed-config';
 import { registerAiIpc } from './command-bar-ai';
+import { registerOnboardingIpc } from './onboarding-state';
+import { registerScannerIpc } from './scanner/ipc';
 import { IPC } from '@shared/ipc';
 
 // AUMID is harmless to set even though we no longer rely on Windows toast
@@ -136,6 +138,10 @@ if (!gotLock) {
     dlog('APP:managed-ipc-registered');
     registerAiIpc();
     dlog('APP:ai-ipc-registered');
+    registerOnboardingIpc();
+    dlog('APP:onboarding-ipc-registered');
+    registerScannerIpc();
+    dlog('APP:scanner-ipc-registered');
     // Detect any pending managed config BEFORE the main window mounts so
     // the renderer's first managed:check-launch-config call sees it.
     detectLaunchConfig();

@@ -31,6 +31,54 @@ export interface TerminalTab {
   createdAt: number;
 }
 
+// Phase 9.5: onboarding tutorial completion state. Stored in its own
+// electron-store file (boxb-onboarding.json) so first-launch detection is
+// independent of services/managed state. `hasCompletedTutorial` flips true
+// when the user finishes OR skips the 4-step tour (both count as "seen" for
+// first-launch purposes); `lastCompletedAt` is the epoch ms of that event
+// (null until the first completion).
+export interface OnboardingState {
+  hasCompletedTutorial: boolean;
+  lastCompletedAt: number | null;
+}
+
+// Phase 9.6: secret scanner. A repository the user has explicitly opted in
+// to scanning. `path` is stored POSIX-normalized (forward slashes) so it's
+// stable across platforms; `name` is the folder basename for display.
+// `lastScanAt` is null until the first manual/hook scan runs.
+export interface ProtectedRepo {
+  id: string;
+  path: string;
+  name: string;
+  enabledAt: number;
+  lastScanAt: number | null;
+}
+
+// Severity buckets for detection patterns. High = near-certain credential;
+// medium = heuristic (high-entropy strings) prone to false positives.
+export type ScanSeverity = 'high' | 'medium' | 'low';
+
+// A single match produced by the scanner engine. `snippet` is ALREADY
+// redacted (e.g. "AKIA****MPLE") — the raw secret never leaves the engine,
+// so it's safe to render in terminal output or the UI. line/col are 1-based.
+export interface ScanResult {
+  patternId: string;
+  patternName: string;
+  severity: ScanSeverity;
+  line: number;
+  col: number;
+  snippet: string;
+}
+
+// The result of scanning a whole repository. Only files WITH issues appear
+// in `files`; `totalIssues` is the flattened count across them.
+export interface ScanReport {
+  repo: string;
+  timestamp: number;
+  files: { path: string; issues: ScanResult[] }[];
+  totalIssues: number;
+}
+
 // Phase 9.1: managed config bumps this when the schema changes. Files with
 // a higher version number are rejected on import with a "needs newer BoxB"
 // message. v1 covers: services, workspaces, hard-lock mode.

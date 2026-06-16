@@ -129,6 +129,43 @@ export const IPC = Object.freeze({
     // renderer should open the SetApiKeyModal. Same primary-window-only
     // pattern as the managed-config export modal.
     openSetApiKeyModal: 'ai:open-set-api-key-modal'
+  },
+  onboarding: {
+    // Renderer → main: read persisted OnboardingState from
+    // boxb-onboarding.json. The renderer checks this on App mount to decide
+    // whether to auto-show the first-launch tutorial.
+    getState: 'onboarding:get-state',
+    // Renderer → main: mark the tutorial complete (sets
+    // hasCompletedTutorial = true, lastCompletedAt = Date.now()). Fired on
+    // both the "Done" and "Skip Tutorial" buttons. Returns the new state.
+    markComplete: 'onboarding:mark-complete',
+    // Renderer → main: reset onboarding state (dev/debug — re-arms the
+    // first-launch auto-show on next launch). Returns the reset state.
+    reset: 'onboarding:reset'
+  },
+  scanner: {
+    // Renderer → main: list the user's protected repos (from
+    // boxb-scanner.json). Renderer mirrors into its store on panel open.
+    listRepos: 'scanner:list-repos',
+    // Renderer → main: open a native folder picker. Returns the chosen
+    // absolute path or null if cancelled. The renderer can't open dialogs
+    // itself (no Node), so this is its entry point to "Add Repo".
+    pickFolder: 'scanner:pick-folder',
+    // Renderer → main: enable scanning for a folder. Validates it's a git
+    // repo, then installs the pre-commit hook — unless a FOREIGN (user-
+    // authored) hook already exists, in which case it returns
+    // { needsConfirm: true } and the renderer must call confirmAddRepo.
+    addRepo: 'scanner:add-repo',
+    // Renderer → main: second step of the add flow after the user agrees to
+    // replace an existing hook. Backs the old hook up to
+    // pre-commit.boxb-backup, installs the BoxB hook, then adds to state.
+    confirmAddRepo: 'scanner:confirm-add-repo',
+    // Renderer → main: stop protecting a repo. Day 1 only removes it from
+    // state; the git hook cleanup is a Day 2 concern.
+    removeRepo: 'scanner:remove-repo',
+    // Renderer → main: run a manual full-repo scan (every non-skipped file,
+    // not just staged). Returns a ScanReport. Updates the repo's lastScanAt.
+    scanRepo: 'scanner:scan-repo'
   }
 });
 

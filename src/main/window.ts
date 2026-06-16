@@ -22,15 +22,22 @@ interface BaseOpts {
   width: number;
   height: number;
   lockedWorkspaceId?: string;
+  // Phase 9.5: secondary windows are tagged so the renderer can tell it's
+  // not the primary window and suppress the first-launch onboarding tour
+  // (onboarding is per-install, shown once in the main window only).
+  isSecondary?: boolean;
 }
 
 function buildBaseWindow(opts: BaseOpts): BrowserWindow {
   // Locked windows pass the workspace id to their renderer via
   // process.argv. The preload reads it once at startup; the renderer's
   // store seals the lock and never unsets it.
-  const additionalArguments = opts.lockedWorkspaceId
-    ? [`--locked-workspace-id=${opts.lockedWorkspaceId}`]
-    : [];
+  const additionalArguments = [
+    ...(opts.lockedWorkspaceId
+      ? [`--locked-workspace-id=${opts.lockedWorkspaceId}`]
+      : []),
+    ...(opts.isSecondary ? ['--secondary-window'] : [])
+  ];
   const win = new BrowserWindow({
     ...(typeof opts.x === 'number' ? { x: opts.x } : {}),
     ...(typeof opts.y === 'number' ? { y: opts.y } : {}),
@@ -194,6 +201,7 @@ export function createSecondaryWindow(opts?: {
     y,
     width: SECONDARY_DEFAULT_WIDTH,
     height: SECONDARY_DEFAULT_HEIGHT,
+    isSecondary: true,
     ...(opts?.lockedWorkspaceId ? { lockedWorkspaceId: opts.lockedWorkspaceId } : {})
   });
   dlog('WIN:show', { reason: 'initial-secondary', wcId: win.webContents.id });

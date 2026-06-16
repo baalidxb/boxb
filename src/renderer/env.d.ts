@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { DetailedHTMLProps, HTMLAttributes } from 'react';
+import type { ProtectedRepo, ScanReport } from '@shared/types';
 
 interface WebviewAttributes {
   src?: string;
@@ -51,6 +52,7 @@ declare global {
         broadcast: (snapshot: unknown) => void;
         onBroadcast: (handler: (snapshot: unknown) => void) => () => void;
         getLockedWorkspaceId: () => string | null;
+        isPrimaryWindow: () => boolean;
         forceClose: () => void;
       };
       hibernation: {
@@ -132,6 +134,39 @@ declare global {
           isManaged: boolean;
         }) => Promise<unknown | null>;
         onOpenSetApiKeyModal: (handler: () => void) => () => void;
+      };
+      onboarding: {
+        getState: () => Promise<{
+          hasCompletedTutorial: boolean;
+          lastCompletedAt: number | null;
+        }>;
+        markComplete: () => Promise<{
+          hasCompletedTutorial: boolean;
+          lastCompletedAt: number | null;
+        }>;
+        reset: () => Promise<{
+          hasCompletedTutorial: boolean;
+          lastCompletedAt: number | null;
+        }>;
+      };
+      scanner: {
+        listRepos: () => Promise<ProtectedRepo[]>;
+        pickFolder: () => Promise<string | null>;
+        addRepo: (
+          path: string
+        ) => Promise<{
+          ok: boolean;
+          repo?: ProtectedRepo;
+          error?: string;
+          needsConfirm?: boolean;
+        }>;
+        confirmAddRepo: (
+          path: string
+        ) => Promise<{ ok: boolean; repo?: ProtectedRepo; error?: string }>;
+        removeRepo: (
+          id: string
+        ) => Promise<{ removed: boolean; restored: boolean; foreign: boolean }>;
+        scanRepo: (id: string) => Promise<ScanReport | null>;
       };
     };
   }

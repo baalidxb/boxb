@@ -3,6 +3,7 @@ import type { IpcRendererEvent } from 'electron';
 import { IPC } from '@shared/ipc';
 
 const LOCKED_WORKSPACE_FLAG = '--locked-workspace-id=';
+const SECONDARY_WINDOW_FLAG = '--secondary-window';
 
 function readLockedWorkspaceId(): string | null {
   // additionalArguments from BrowserWindow.webPreferences land in process.argv
@@ -17,6 +18,10 @@ function readLockedWorkspaceId(): string | null {
 }
 
 const lockedWorkspaceId = readLockedWorkspaceId();
+// Phase 9.5: main tags secondary windows with --secondary-window. The
+// renderer uses this to suppress the first-launch onboarding tour in any
+// window other than the primary one.
+const isSecondaryWindow = process.argv.includes(SECONDARY_WINDOW_FLAG);
 
 const api = {
   app: {
@@ -66,6 +71,7 @@ const api = {
       return () => ipcRenderer.removeListener(IPC.window.applyBroadcast, wrapped);
     },
     getLockedWorkspaceId: (): string | null => lockedWorkspaceId,
+    isPrimaryWindow: (): boolean => !isSecondaryWindow,
     forceClose: (): void => {
       ipcRenderer.send(IPC.window.forceClose);
     }
@@ -187,6 +193,44 @@ const api = {
       ipcRenderer.on(IPC.ai.openSetApiKeyModal, wrapped);
       return () => ipcRenderer.removeListener(IPC.ai.openSetApiKeyModal, wrapped);
     }
+  },
+  onboarding: {
+    getState: (): Promise<{
+      hasCompletedTutorial: boolean;
+      lastCompletedAt: number | null;
+    }> => ipcRenderer.invoke(IPC.onboarding.getState),
+    markComplete: (): Promise<{
+      hasCompletedTutorial: boolean;
+      lastCompletedAt: number | null;
+    }> => ipcRenderer.invoke(IPC.onboarding.markComplete),
+    reset: (): Promise<{
+      hasCompletedTutorial: boolean;
+      lastCompletedAt: number | null;
+    }> => ipcRenderer.invoke(IPC.onboarding.reset)
+  },
+  scanner: {
+    listRepos: (): Promise<unknown[]> =>
+      ipcRenderer.invoke(IPC.scanner.listRepos),
+    pickFolder: (): Promise<string | null> =>
+      ipcRenderer.invoke(IPC.scanner.pickFolder),
+    addRepo: (
+      path: string
+    ): Promise<{
+      ok: boolean;
+      repo?: unknown;
+      error?: string;
+      needsConfirm?: boolean;
+    }> => ipcRenderer.invoke(IPC.scanner.addRepo, path),
+    confirmAddRepo: (
+      path: string
+    ): Promise<{ ok: boolean; repo?: unknown; error?: string }> =>
+      ipcRenderer.invoke(IPC.scanner.confirmAddRepo, path),
+    removeRepo: (
+      id: string
+    ): Promise<{ removed: boolean; restored: boolean; foreign: boolean }> =>
+      ipcRenderer.invoke(IPC.scanner.removeRepo, id),
+    scanRepo: (id: string): Promise<unknown | null> =>
+      ipcRenderer.invoke(IPC.scanner.scanRepo, id)
   }
 } as const;
 

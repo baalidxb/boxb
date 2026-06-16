@@ -15,6 +15,9 @@ import { ExportConfigModal } from './components/ExportConfigModal';
 import { ApplyManagedConfigModal } from './components/ApplyManagedConfigModal';
 import { CommandBar } from './components/CommandBar';
 import { SetApiKeyModal } from './components/SetApiKeyModal';
+import { OnboardingTutorial } from './components/OnboardingTutorial';
+import { HelpModal } from './components/HelpModal';
+import { SecurityPanel } from './components/SecurityPanel';
 import {
   applyBroadcastSnapshot,
   ensureWorkspacesInitialized,
@@ -23,6 +26,8 @@ import {
 import { useTerminalStore } from './store/terminal';
 import { useManagedStore } from './store/managed';
 import { useCommandBarStore } from './store/commandBar';
+import { useOnboardingStore } from './store/onboarding';
+import { useScannerStore } from './store/scanner';
 import { catalog } from '../catalog/apps';
 import type { CommandBarAction, ManagedConfigFile } from '@shared/types';
 
@@ -44,6 +49,7 @@ export default function App(): JSX.Element {
   const reorderWorkspaces = useServicesStore((s) => s.reorderWorkspaces);
   const openRenameService = useServicesStore((s) => s.openRenameService);
   const isManaged = useManagedStore((s) => s.isManaged);
+  const securityPanelOpen = useScannerStore((s) => s.panelOpen);
 
   // Phase 9.1: per-window managed-mode UI state. Modal opens are local
   // to this window — the export modal is admin-only and never appears in
@@ -153,6 +159,43 @@ export default function App(): JSX.Element {
     return window.boxb.ai.onOpenSetApiKeyModal(() => {
       setSetApiKeyOpen(true);
     });
+  }, []);
+
+  // Phase 9.6: hydrate the protected-repo list once on mount so the security
+  // panel renders the user's repos immediately when toggled open.
+  useEffect(() => {
+    void useScannerStore.getState().hydrate();
+  }, []);
+
+  // Phase 9.5: first-launch onboarding tour. Auto-show only when:
+  //   - this is the primary window (secondary windows never trigger it),
+  //   - the tour hasn't already been completed/skipped on this install, and
+  //   - the install isn't admin-managed (hard-lock managed users get a
+  //     focused setup from their admin and don't need the full tour — every
+  //     v1 managed config is hard-lock, so isManaged implies that here).
+  // The help "?" button remains available in all cases. We await the managed
+  // hydrate (idempotent) so the isManaged check is reliable before deciding.
+  useEffect(() => {
+    let cancelled = false;
+    (async (): Promise<void> => {
+      await useOnboardingStore.getState().hydrate();
+      await useManagedStore.getState().hydrate();
+      if (cancelled) return;
+      const ob = useOnboardingStore.getState();
+      if (ob.tutorialOpen || ob.hasCompletedTutorial) return;
+      let isPrimary = true;
+      try {
+        isPrimary = window.boxb.window.isPrimaryWindow();
+      } catch {
+        // best effort — default to primary if the bridge call fails
+      }
+      if (!isPrimary) return;
+      if (useManagedStore.getState().isManaged) return;
+      ob.startTutorial();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Action executor: the command bar dispatches one of these per Enter.
@@ -343,6 +386,27 @@ export default function App(): JSX.Element {
       }
 
       if (e.key === 'Escape') {
+        // Help modal sits above everything else (z-90) — close it first.
+        // The tutorial overlay intentionally has no Esc binding; users exit
+        // it via the explicit "Skip Tutorial"/"Done" buttons.
+        const onboarding = useOnboardingStore.getState();
+        if (onboarding.helpOpen) {
+          e.preventDefault();
+          onboarding.closeHelp();
+          return;
+        }
+        const scanner = useScannerStore.getState();
+        if (scanner.pendingConflictPath) {
+          // Conflict modal is up — Esc aborts the replace, not the panel.
+          e.preventDefault();
+          scanner.cancelReplaceHook();
+          return;
+        }
+        if (scanner.panelOpen) {
+          e.preventDefault();
+          scanner.closePanel();
+          return;
+        }
         // Command bar gets first dibs — its own input also handles Esc,
         // but if focus has slipped this is the safety net.
         const cmd = useCommandBarStore.getState();
@@ -539,6 +603,10 @@ export default function App(): JSX.Element {
               <EmptyState />
             </div>
           )}
+          {/* Phase 9.6: Security view replaces the service area while open.
+              Rendered over (not instead of) the webviews so toggling back
+              doesn't reload any service. */}
+          {securityPanelOpen && <SecurityPanel />}
         </div>
         <TerminalPanel ref={terminalPanelRef} />
       </div>
@@ -605,6 +673,12 @@ export default function App(): JSX.Element {
       {!isManaged && (
         <SetApiKeyModal isOpen={setApiKeyOpen} onClose={() => setSetApiKeyOpen(false)} />
       )}
+      {/* Phase 9.5 onboarding. The tutorial overlay self-gates on its store's
+          tutorialOpen flag (auto-shown once on first launch in the primary,
+          non-managed window). The help modal is reachable anytime via the
+          TopBar "?" button, including in managed installs. */}
+      <OnboardingTutorial />
+      <HelpModal />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import { useServicesStore } from '../store/services';
 import { useManagedStore } from '../store/managed';
+import { useOnboardingStore } from '../store/onboarding';
 import { reloadActiveWebview } from '../lib/webview-controller';
-import { GearIcon, RefreshIcon } from './Icons';
+import { GearIcon, QuestionIcon, RefreshIcon } from './Icons';
 
 export function TopBar(): JSX.Element {
   const activeServiceId = useServicesStore((s) => s.activeServiceId);
@@ -11,6 +12,7 @@ export function TopBar(): JSX.Element {
   const isManaged = useManagedStore((s) => s.isManaged);
   const managedConfigName = useManagedStore((s) => s.configName);
   const managedHydrated = useManagedStore((s) => s.hydrated);
+  const openHelp = useOnboardingStore((s) => s.openHelp);
   const active = services.find((s) => s.id === activeServiceId);
   const lockedWs = lockedWorkspaceId
     ? workspaces.find((w) => w.id === lockedWorkspaceId) ?? null
@@ -71,6 +73,19 @@ export function TopBar(): JSX.Element {
             <span>Managed</span>
           </div>
         )}
+        <button
+          type="button"
+          aria-label="Help & shortcuts"
+          title="Help & shortcuts"
+          onClick={() => openHelp('tour')}
+          className={[
+            'flex items-center justify-center rounded text-accent/70',
+            'transition-all duration-150 ease-out hover:text-accent hover:scale-110',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+          ].join(' ')}
+        >
+          <QuestionIcon size={18} />
+        </button>
         <button
           type="button"
           aria-label="Refresh"

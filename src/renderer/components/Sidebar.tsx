@@ -1,9 +1,10 @@
 import { useServicesStore } from '../store/services';
 import { useManagedStore } from '../store/managed';
+import { useScannerStore } from '../store/scanner';
 import { Logo } from './Logo';
 import { ServiceIcon } from './ServiceIcon';
 import { WorkspacePill } from './WorkspacePill';
-import { GearIcon, LockIcon, PlusIcon } from './Icons';
+import { GearIcon, LockIcon, PlusIcon, ShieldIcon } from './Icons';
 
 export function Sidebar(): JSX.Element {
   const services = useServicesStore((s) => s.services);
@@ -20,6 +21,8 @@ export function Sidebar(): JSX.Element {
   const setActiveService = useServicesStore((s) => s.setActiveService);
   const isManaged = useManagedStore((s) => s.isManaged);
   const managedHydrated = useManagedStore((s) => s.hydrated);
+  const securityOpen = useScannerStore((s) => s.panelOpen);
+  const toggleSecurity = useScannerStore((s) => s.togglePanel);
 
   const isLocked = lockedWorkspaceId !== null;
   // Render the locked variant only after the managed store has hydrated —
@@ -51,9 +54,35 @@ export function Sidebar(): JSX.Element {
 
       <div className="border-t-[0.5px] border-t-[#1A1A1A]" />
 
+      {/* Phase 9.6: Security view toggle. Sits above the workspace pills and
+          stays visible regardless of locked/managed state — scanning is a
+          local developer tool, not part of the managed layout. */}
+      <div className="flex items-center justify-center pt-[10px] shrink-0">
+        <button
+          type="button"
+          onClick={toggleSecurity}
+          aria-label="Security"
+          aria-pressed={securityOpen}
+          title="Security — secret scanner"
+          className={[
+            'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
+            'border-[0.5px] transition-all duration-150 ease-out',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+            securityOpen
+              ? 'text-accent border-accent bg-accent/10'
+              : 'text-muted border-transparent hover:text-accent hover:border-accent'
+          ].join(' ')}
+        >
+          <ShieldIcon size={18} />
+        </button>
+      </div>
+
       {!isLocked && (
         <>
-          <div className="flex flex-col items-center pt-[10px] gap-[10px] shrink-0">
+          <div
+            data-tour="workspaces"
+            className="flex flex-col items-center pt-[10px] gap-[10px] shrink-0"
+          >
             {orderedWorkspaces.map((w) => (
               <WorkspacePill
                 key={w.id}
@@ -120,6 +149,7 @@ export function Sidebar(): JSX.Element {
             type="button"
             onClick={openAddModal}
             aria-label="Add app"
+            data-tour="add-service"
             className={[
               'w-10 h-10 rounded-lg flex items-center justify-center text-muted',
               'border-[0.5px] border-transparent',

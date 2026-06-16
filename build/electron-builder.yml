@@ -15,6 +15,11 @@ asar: true
 # asar so the runtime resolves to the disk copy.
 asarUnpack:
   - "**/node_modules/node-pty/**"
+  # Phase 9.6 (Day 2): the secret-scanner CLI is invoked by git pre-commit
+  # hooks via `node <path>/index.cjs`. node can't execute a file from inside
+  # an asar archive, so unpack it to app.asar.unpacked/out/scanner-cli/. The
+  # installed hook resolves exactly this path (see scanner/cli-path.ts).
+  - "out/scanner-cli/**/*"
 # node-pty 1.1.0's npm tarball ships the prebuilt pty.node + winpty
 # binaries but its source tree is missing winpty/shared/GetCommitHash.bat,
 # so any from-source rebuild fails. The prebuilt binary is N-API and
