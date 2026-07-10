@@ -42,6 +42,7 @@ export function SecurityPanel(): JSX.Element {
   const lastScanReport = useScannerStore((s) => s.lastScanReport);
   const addError = useScannerStore((s) => s.addError);
   const notice = useScannerStore((s) => s.notice);
+  const noticeTone = useScannerStore((s) => s.noticeTone);
   const closePanel = useScannerStore((s) => s.closePanel);
   const pickAndAddRepo = useScannerStore((s) => s.pickAndAddRepo);
   const removeRepo = useScannerStore((s) => s.removeRepo);
@@ -105,7 +106,12 @@ export function SecurityPanel(): JSX.Element {
           </span>
         )}
         {!addError && notice && (
-          <span className="text-[12px] text-muted flex-1 min-w-0 leading-snug">
+          <span
+            className={[
+              'text-[12px] flex-1 min-w-0 leading-snug',
+              noticeTone === 'gold' ? 'text-accent' : 'text-muted'
+            ].join(' ')}
+          >
             {notice}
           </span>
         )}

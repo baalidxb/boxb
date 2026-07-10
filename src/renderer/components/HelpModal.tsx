@@ -28,6 +28,14 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ]
   },
   {
+    title: 'AI & Productivity',
+    items: [
+      { keys: 'Ctrl+Shift+K', desc: 'Ask AI about any text (Context Bridge)' },
+      { keys: 'Right-click', desc: '"Ask AI about selection" on selected text' },
+      { keys: 'Ctrl+K → remind…', desc: '"remind me to call Ali at 5pm"' }
+    ]
+  },
+  {
     title: 'Workspaces',
     items: [
       { keys: 'Ctrl+Shift+]', desc: 'Next workspace' },
@@ -139,6 +147,30 @@ export function HelpModal(): JSX.Element | null {
             A quick 60-second walkthrough of the BoxB essentials — adding
             services, workspaces, the system tray, and the command bar.
           </p>
+          <div className="mt-4 space-y-2">
+            <div className="text-[11px] font-semibold tracking-wider uppercase text-muted">
+              New in v0.2.0
+            </div>
+            <p className="text-[13px] leading-relaxed text-fg/90">
+              <span className="text-accent">Reminders &amp; Tasks</span> — bell
+              icon in the sidebar, or type &ldquo;remind me to…&rdquo; in Ctrl+K.
+            </p>
+            <p className="text-[13px] leading-relaxed text-fg/90">
+              <span className="text-accent">Calendar</span> — calendar icon in
+              the sidebar; paste your Google/Outlook secret ICS link once and
+              see all events in one agenda.
+            </p>
+            <p className="text-[13px] leading-relaxed text-fg/90">
+              <span className="text-accent">Meeting Briefs</span> — a toast 15
+              minutes before each meeting; click it for details and AI prep
+              notes.
+            </p>
+            <p className="text-[13px] leading-relaxed text-fg/90">
+              <span className="text-accent">Ask AI</span> — select text in any
+              service, right-click → &ldquo;Ask AI about selection&rdquo; to
+              summarize, translate, or draft a reply.
+            </p>
+          </div>
           <button
             type="button"
             onClick={startTutorial}

@@ -35,12 +35,47 @@ const QUICK_PICKS: QuickPick[] = [
   }
 ];
 
-// datetime-local needs "YYYY-MM-DDTHH:mm" in LOCAL time; toISOString is UTC
-// so build it by hand.
-function toLocalInputValue(ts: number): string {
-  const d = new Date(ts);
-  const pad = (n: number): string => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+// v0.2.0 polish: custom pick-time controls. The native datetime-local input
+// on Windows has no clickable spinners (Baali's acceptance feedback), so
+// "Pick time…" uses plain dropdowns instead: day / hour / minute / AM-PM.
+
+interface CustomTime {
+  dayOffset: number; // 0 = today
+  hour12: number; // 1..12
+  minute: number; // 0, 5, 10 … 55
+  meridiem: 'AM' | 'PM';
+}
+
+function defaultCustomTime(): CustomTime {
+  // Next full hour, at least 1h out.
+  const d = new Date(Date.now() + HOUR_MS);
+  const h24 = d.getHours();
+  return {
+    dayOffset: 0,
+    hour12: h24 % 12 === 0 ? 12 : h24 % 12,
+    minute: 0,
+    meridiem: h24 >= 12 ? 'PM' : 'AM'
+  };
+}
+
+function customTimeToEpoch(t: CustomTime): number {
+  const now = new Date();
+  let h = t.hour12 % 12;
+  if (t.meridiem === 'PM') h += 12;
+  return new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + t.dayOffset,
+    h,
+    t.minute
+  ).getTime();
+}
+
+function dayOffsetLabel(offset: number): string {
+  if (offset === 0) return 'Today';
+  if (offset === 1) return 'Tomorrow';
+  const d = new Date(Date.now() + offset * 24 * HOUR_MS);
+  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function ReminderRow({
@@ -155,9 +190,7 @@ export function RemindersPanel(): JSX.Element {
   // Create-form state.
   const [text, setText] = useState('');
   const [pickId, setPickId] = useState<string>('1h');
-  const [customValue, setCustomValue] = useState<string>(() =>
-    toLocalInputValue(Date.now() + HOUR_MS)
-  );
+  const [customTime, setCustomTime] = useState<CustomTime>(defaultCustomTime);
   const [serviceId, setServiceId] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -192,11 +225,7 @@ export function RemindersPanel(): JSX.Element {
     }
     let dueAt: number;
     if (pickId === 'custom') {
-      const parsed = Date.parse(customValue);
-      if (!Number.isFinite(parsed)) {
-        setFormError('Pick a valid date and time.');
-        return;
-      }
+      const parsed = customTimeToEpoch(customTime);
       if (parsed <= Date.now()) {
         setFormError('That time is in the past.');
         return;
@@ -298,24 +327,72 @@ export function RemindersPanel(): JSX.Element {
               type="button"
               onClick={() => {
                 setPickId('custom');
-                setCustomValue(toLocalInputValue(Date.now() + HOUR_MS));
+                setCustomTime(defaultCustomTime());
               }}
               className={chipClass(pickId === 'custom')}
             >
               Pick time…
             </button>
             {pickId === 'custom' && (
-              <input
-                type="datetime-local"
-                value={customValue}
-                onChange={(e) => setCustomValue(e.target.value)}
-                className={[
-                  'px-2 py-1.5 rounded-md text-[12px] text-fg',
-                  'bg-bg border-[0.5px] border-[#1A1A1A]',
-                  'focus:outline-none focus:border-accent',
-                  '[color-scheme:dark]'
-                ].join(' ')}
-              />
+              <span className="flex items-center gap-1.5">
+                <select
+                  value={customTime.dayOffset}
+                  onChange={(e) =>
+                    setCustomTime({ ...customTime, dayOffset: Number(e.target.value) })
+                  }
+                  aria-label="Day"
+                  className="px-2 py-1.5 rounded-md text-[12px] text-fg bg-bg border-[0.5px] border-[#1A1A1A] focus:outline-none focus:border-accent"
+                >
+                  {Array.from({ length: 14 }, (_, i) => (
+                    <option key={i} value={i}>
+                      {dayOffsetLabel(i)}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={customTime.hour12}
+                  onChange={(e) =>
+                    setCustomTime({ ...customTime, hour12: Number(e.target.value) })
+                  }
+                  aria-label="Hour"
+                  className="px-2 py-1.5 rounded-md text-[12px] text-fg bg-bg border-[0.5px] border-[#1A1A1A] focus:outline-none focus:border-accent"
+                >
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {i + 1}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-muted text-[12px]">:</span>
+                <select
+                  value={customTime.minute}
+                  onChange={(e) =>
+                    setCustomTime({ ...customTime, minute: Number(e.target.value) })
+                  }
+                  aria-label="Minute"
+                  className="px-2 py-1.5 rounded-md text-[12px] text-fg bg-bg border-[0.5px] border-[#1A1A1A] focus:outline-none focus:border-accent"
+                >
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i * 5} value={i * 5}>
+                      {String(i * 5).padStart(2, '0')}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={customTime.meridiem}
+                  onChange={(e) =>
+                    setCustomTime({
+                      ...customTime,
+                      meridiem: e.target.value === 'PM' ? 'PM' : 'AM'
+                    })
+                  }
+                  aria-label="AM or PM"
+                  className="px-2 py-1.5 rounded-md text-[12px] text-fg bg-bg border-[0.5px] border-[#1A1A1A] focus:outline-none focus:border-accent"
+                >
+                  <option value="AM">AM</option>
+                  <option value="PM">PM</option>
+                </select>
+              </span>
             )}
           </div>
           <div className="flex items-center gap-3 mt-3">

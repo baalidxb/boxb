@@ -26,6 +26,12 @@ interface ScannerStore {
   addError: string | null;
   // Neutral informational message (muted) — e.g. "kept your custom hook".
   notice: string | null;
+  // 'gold' notices are security-relevant (foreign hook preserved) — they
+  // render in accent color and do NOT auto-dismiss. Day-3 polish: the old
+  // 7s auto-clear made the foreign-hook message vanish before the user
+  // finished checking the hook file on disk, which looked like a render
+  // bug (v0.2.0 known-gap list).
+  noticeTone: 'muted' | 'gold';
   // Set when addRepo reported a foreign pre-commit hook; drives the
   // ReplaceHookConfirmModal. Holds the picked folder path for the confirm
   // step. Null when no conflict is pending.
@@ -55,6 +61,7 @@ export const useScannerStore = create<ScannerStore>()((set, get) => ({
   lastScanReport: null,
   addError: null,
   notice: null,
+  noticeTone: 'muted',
   pendingConflictPath: null,
 
   hydrate: async () => {
@@ -117,7 +124,8 @@ export const useScannerStore = create<ScannerStore>()((set, get) => ({
       const repos = await window.boxb.scanner.listRepos();
       set({
         repos: Array.isArray(repos) ? repos : [],
-        notice: 'Existing hook backed up to pre-commit.boxb-backup.'
+        notice: 'Existing hook backed up to pre-commit.boxb-backup.',
+        noticeTone: 'muted'
       });
     } catch (err) {
       set({ addError: err instanceof Error ? err.message : String(err) });
@@ -145,17 +153,20 @@ export const useScannerStore = create<ScannerStore>()((set, get) => ({
     const repos = await window.boxb.scanner.listRepos();
     // Translate the hook outcome into a one-line user notice.
     let notice: string | null = null;
+    let noticeTone: 'muted' | 'gold' = 'muted';
     if (result.foreign) {
       // The user edited the hook after we installed it (no marker), so we
       // left it in place — tell them where it is and that cleanup is on them.
       notice =
         'Hook was modified after install — preserved as-is in .git/hooks/pre-commit. Remove manually if you no longer need it.';
+      noticeTone = 'gold';
     } else if (result.restored) {
       notice = 'Removed. Your previous pre-commit hook was restored.';
     }
     set((s) => ({
       repos: Array.isArray(repos) ? repos : [],
       notice,
+      noticeTone,
       addError: null,
       // Drop a stale report belonging to the removed repo.
       lastScanReport:
@@ -163,7 +174,9 @@ export const useScannerStore = create<ScannerStore>()((set, get) => ({
           ? null
           : s.lastScanReport
     }));
-    if (notice) {
+    // Gold (security-relevant) notices stay until the user acts; only
+    // muted informational ones auto-dismiss.
+    if (notice && noticeTone === 'muted') {
       if (noticeTimer) clearTimeout(noticeTimer);
       noticeTimer = setTimeout(() => {
         // Only clear if this exact notice is still showing — a newer notice
@@ -199,6 +212,6 @@ export const useScannerStore = create<ScannerStore>()((set, get) => ({
       clearTimeout(noticeTimer);
       noticeTimer = null;
     }
-    set({ addError: null, notice: null });
+    set({ addError: null, notice: null, noticeTone: 'muted' });
   }
 }));

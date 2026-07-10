@@ -18,6 +18,7 @@ import { registerScannerIpc } from './scanner/ipc';
 import { initReminders, registerRemindersIpc } from './reminders';
 import { initCalendar, registerCalendarIpc } from './calendar';
 import { registerBridgeIpc } from './bridge-ai';
+import { sweepOrphanPartitions } from './partition-cleanup';
 import { IPC } from '@shared/ipc';
 
 // AUMID is harmless to set even though we no longer rely on Windows toast
@@ -131,6 +132,11 @@ if (!gotLock) {
       dlog('APP:default-spellcheck-failed', { error: String(err) });
     }
 
+    // Sweep orphaned partition folders BEFORE any webview session opens —
+    // no open sessions means no Windows file locks. Fire-and-forget; the
+    // sweep aborts itself if the services store can't be read.
+    void sweepOrphanPartitions();
+    dlog('APP:partition-sweep-started');
     initToastWindow();
     dlog('APP:toast-window-initialized');
     const storage = registerIpcHandlers();
