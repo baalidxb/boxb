@@ -253,6 +253,26 @@ const api = {
       return () => ipcRenderer.removeListener(IPC.reminders.openPanel, wrapped);
     }
   },
+  calendar: {
+    listSources: (): Promise<unknown[]> =>
+      ipcRenderer.invoke(IPC.calendar.listSources),
+    addSource: (payload: {
+      name: string;
+      url: string;
+    }): Promise<{ ok: boolean; source?: unknown; error?: string }> =>
+      ipcRenderer.invoke(IPC.calendar.addSource, payload),
+    removeSource: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.calendar.removeSource, id),
+    getEvents: (payload: {
+      force?: boolean;
+    }): Promise<{ events: unknown[]; statuses: unknown[] }> =>
+      ipcRenderer.invoke(IPC.calendar.getEvents, payload),
+    onChanged: (handler: () => void): (() => void) => {
+      const wrapped = (): void => handler();
+      ipcRenderer.on(IPC.calendar.changed, wrapped);
+      return () => ipcRenderer.removeListener(IPC.calendar.changed, wrapped);
+    }
+  },
   scanner: {
     listRepos: (): Promise<unknown[]> =>
       ipcRenderer.invoke(IPC.scanner.listRepos),

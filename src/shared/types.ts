@@ -104,6 +104,44 @@ export interface TodoItem {
   createdAt: number;
 }
 
+// Phase 9.8: calendar unified view. A calendar the user subscribed to by
+// pasting its secret ICS URL (Google "Secret address in iCal format",
+// Outlook "Publish calendar" ICS link). Read-only. `color` is a hex string
+// from a preset palette, assigned on add, used as the event dot.
+export interface CalendarSource {
+  id: string;
+  name: string;
+  url: string;
+  color: string;
+  addedAt: number;
+}
+
+// One occurrence of an event inside the agenda window. Recurring VEVENTs
+// are already expanded — each occurrence is its own CalendarEvent. Times
+// are epoch ms in the user's local zone reckoning; allDay events carry the
+// local-midnight start of their day(s).
+export interface CalendarEvent {
+  id: string;
+  calendarId: string;
+  title: string;
+  location: string | null;
+  start: number;
+  end: number;
+  allDay: boolean;
+}
+
+// Per-source fetch outcome so the panel can show partial failures ("DEF
+// calendar unreachable") without hiding the calendars that worked. When a
+// fetch fails but a previous good result exists, events fall back to that
+// cache and `stale` flips true.
+export interface CalendarFetchStatus {
+  calendarId: string;
+  ok: boolean;
+  stale: boolean;
+  error: string | null;
+  fetchedAt: number | null;
+}
+
 // Phase 9.1: managed config bumps this when the schema changes. Files with
 // a higher version number are rejected on import with a "needs newer BoxB"
 // message. v1 covers: services, workspaces, hard-lock mode.

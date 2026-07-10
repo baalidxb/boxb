@@ -19,6 +19,7 @@ import { OnboardingTutorial } from './components/OnboardingTutorial';
 import { HelpModal } from './components/HelpModal';
 import { SecurityPanel } from './components/SecurityPanel';
 import { RemindersPanel } from './components/RemindersPanel';
+import { CalendarPanel } from './components/CalendarPanel';
 import {
   applyBroadcastSnapshot,
   ensureWorkspacesInitialized,
@@ -30,6 +31,7 @@ import { useCommandBarStore } from './store/commandBar';
 import { useOnboardingStore } from './store/onboarding';
 import { useScannerStore } from './store/scanner';
 import { useRemindersStore } from './store/reminders';
+import { useCalendarStore } from './store/calendar';
 import { catalog } from '../catalog/apps';
 import type { CommandBarAction, ManagedConfigFile } from '@shared/types';
 
@@ -53,6 +55,7 @@ export default function App(): JSX.Element {
   const isManaged = useManagedStore((s) => s.isManaged);
   const securityPanelOpen = useScannerStore((s) => s.panelOpen);
   const remindersPanelOpen = useRemindersStore((s) => s.panelOpen);
+  const calendarPanelOpen = useCalendarStore((s) => s.panelOpen);
 
   // Phase 9.1: per-window managed-mode UI state. Modal opens are local
   // to this window — the export modal is admin-only and never appears in
@@ -177,6 +180,15 @@ export default function App(): JSX.Element {
     void useRemindersStore.getState().hydrate();
     return window.boxb.reminders.onChanged(() => {
       void useRemindersStore.getState().hydrate();
+    });
+  }, []);
+
+  // Phase 9.8: hydrate calendar sources on mount; re-list on change
+  // broadcasts (source added/removed in another window).
+  useEffect(() => {
+    void useCalendarStore.getState().hydrate();
+    return window.boxb.calendar.onChanged(() => {
+      void useCalendarStore.getState().hydrate();
     });
   }, []);
 
@@ -465,6 +477,12 @@ export default function App(): JSX.Element {
           remindersState.closePanel();
           return;
         }
+        const calendarState = useCalendarStore.getState();
+        if (calendarState.panelOpen) {
+          e.preventDefault();
+          calendarState.closePanel();
+          return;
+        }
         // Command bar gets first dibs — its own input also handles Esc,
         // but if focus has slipped this is the safety net.
         const cmd = useCommandBarStore.getState();
@@ -668,6 +686,7 @@ export default function App(): JSX.Element {
           {/* Phase 9.7: Reminders view — same overlay pattern. The sidebar
               toggles make Security and Reminders mutually exclusive. */}
           {remindersPanelOpen && <RemindersPanel />}
+          {calendarPanelOpen && <CalendarPanel />}
         </div>
         <TerminalPanel ref={terminalPanelRef} />
       </div>

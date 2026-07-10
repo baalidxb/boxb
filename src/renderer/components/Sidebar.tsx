@@ -3,10 +3,18 @@ import { useServicesStore } from '../store/services';
 import { useManagedStore } from '../store/managed';
 import { useScannerStore } from '../store/scanner';
 import { useRemindersStore } from '../store/reminders';
+import { useCalendarStore } from '../store/calendar';
 import { Logo } from './Logo';
 import { ServiceIcon } from './ServiceIcon';
 import { WorkspacePill } from './WorkspacePill';
-import { BellIcon, GearIcon, LockIcon, PlusIcon, ShieldIcon } from './Icons';
+import {
+  BellIcon,
+  CalendarIcon as CalendarGlyph,
+  GearIcon,
+  LockIcon,
+  PlusIcon,
+  ShieldIcon
+} from './Icons';
 
 export function Sidebar(): JSX.Element {
   const services = useServicesStore((s) => s.services);
@@ -35,15 +43,24 @@ export function Sidebar(): JSX.Element {
   }, []);
   const overdueCount = reminders.filter((r) => r.dueAt <= now).length;
 
-  // The two overlay panels (Security / Reminders) are mutually exclusive —
-  // opening one closes the other so they never stack invisibly.
+  const calendarOpen = useCalendarStore((s) => s.panelOpen);
+
+  // The overlay panels (Security / Reminders / Calendar) are mutually
+  // exclusive — opening one closes the others so they never stack invisibly.
   const toggleSecurity = (): void => {
     useRemindersStore.getState().closePanel();
+    useCalendarStore.getState().closePanel();
     useScannerStore.getState().togglePanel();
   };
   const toggleReminders = (): void => {
     useScannerStore.getState().closePanel();
+    useCalendarStore.getState().closePanel();
     useRemindersStore.getState().togglePanel();
+  };
+  const toggleCalendar = (): void => {
+    useScannerStore.getState().closePanel();
+    useRemindersStore.getState().closePanel();
+    useCalendarStore.getState().togglePanel();
   };
 
   const isLocked = lockedWorkspaceId !== null;
@@ -128,6 +145,27 @@ export function Sidebar(): JSX.Element {
               {overdueCount > 9 ? '9+' : overdueCount}
             </span>
           )}
+        </button>
+      </div>
+
+      {/* Phase 9.8: Calendar view toggle. */}
+      <div className="flex items-center justify-center pt-[10px] shrink-0">
+        <button
+          type="button"
+          onClick={toggleCalendar}
+          aria-label="Calendar"
+          aria-pressed={calendarOpen}
+          title="Calendar — unified agenda"
+          className={[
+            'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
+            'border-[0.5px] transition-all duration-150 ease-out',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+            calendarOpen
+              ? 'text-accent border-accent bg-accent/10'
+              : 'text-muted border-transparent hover:text-accent hover:border-accent'
+          ].join(' ')}
+        >
+          <CalendarGlyph size={18} />
         </button>
       </div>
 

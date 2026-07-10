@@ -176,6 +176,22 @@ export const IPC = Object.freeze({
     toastDone: 'reminders:toast-done',
     toastSnooze: 'reminders:toast-snooze'
   },
+  calendar: {
+    // Renderer → main: list subscribed calendar sources (boxb-calendars.json).
+    listSources: 'calendar:list-sources',
+    // Renderer → main: add a source { name, url }. Main validates the URL
+    // shape, assigns a palette color, and does a first fetch so the add
+    // form can surface "that link didn't work" immediately.
+    addSource: 'calendar:add-source',
+    // Renderer → main: remove a source (and its cached events).
+    removeSource: 'calendar:remove-source',
+    // Renderer → main: get the merged agenda window (today → +7 days) for
+    // all sources plus per-source fetch status. `force: true` bypasses the
+    // in-memory TTL (the panel's Refresh button).
+    getEvents: 'calendar:get-events',
+    // Main → all renderers: source list changed; panels re-list.
+    changed: 'calendar:changed'
+  },
   scanner: {
     // Renderer → main: list the user's protected repos (from
     // boxb-scanner.json). Renderer mirrors into its store on panel open.

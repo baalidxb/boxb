@@ -1,7 +1,15 @@
 /// <reference types="vite/client" />
 
 import type { DetailedHTMLProps, HTMLAttributes } from 'react';
-import type { ProtectedRepo, Reminder, ScanReport, TodoItem } from '@shared/types';
+import type {
+  CalendarEvent,
+  CalendarFetchStatus,
+  CalendarSource,
+  ProtectedRepo,
+  Reminder,
+  ScanReport,
+  TodoItem
+} from '@shared/types';
 
 interface WebviewAttributes {
   src?: string;
@@ -169,6 +177,18 @@ declare global {
           handler: (payload: { serviceId: string }) => void
         ) => () => void;
         onOpenPanel: (handler: () => void) => () => void;
+      };
+      calendar: {
+        listSources: () => Promise<CalendarSource[]>;
+        addSource: (payload: {
+          name: string;
+          url: string;
+        }) => Promise<{ ok: boolean; source?: CalendarSource; error?: string }>;
+        removeSource: (id: string) => Promise<boolean>;
+        getEvents: (payload: {
+          force?: boolean;
+        }) => Promise<{ events: CalendarEvent[]; statuses: CalendarFetchStatus[] }>;
+        onChanged: (handler: () => void) => () => void;
       };
       scanner: {
         listRepos: () => Promise<ProtectedRepo[]>;
