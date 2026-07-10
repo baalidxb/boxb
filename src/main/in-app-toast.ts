@@ -27,6 +27,9 @@ interface ShowOptions {
   body: string;
   iconUrl?: string | undefined;
   onClick: () => void;
+  // Phase 9.9: sticky notification toasts use the long (5 min) timeout —
+  // meeting alerts must survive the user being away from the desk.
+  sticky?: boolean | undefined;
 }
 
 interface ActionToastOptions {
@@ -47,6 +50,7 @@ interface ShowPayload {
   iconUrl?: string | undefined;
   timestamp: number;
   kind?: 'notification' | 'action' | 'reminder';
+  sticky?: boolean | undefined;
 }
 
 const TOAST_HTML = `<!doctype html>
@@ -334,7 +338,7 @@ const TOAST_HTML = `<!doctype html>
       var timeEl = el.querySelector('.time');
       // Reminders use the long timeout too — the whole point is catching
       // the user when they come back to the desk.
-      var dismissMs = (isAction || isReminder) ? ${ACTION_AUTO_DISMISS_MS} : ${AUTO_DISMISS_MS};
+      var dismissMs = (isAction || isReminder || payload.sticky) ? ${ACTION_AUTO_DISMISS_MS} : ${AUTO_DISMISS_MS};
       var entry = {
         el: el,
         payload: payload,
@@ -481,7 +485,8 @@ export function showToast(opts: ShowOptions): void {
     body: opts.body,
     iconUrl: opts.iconUrl,
     timestamp: Date.now(),
-    kind: 'notification'
+    kind: 'notification',
+    sticky: opts.sticky
   };
   dlog('TOAST:show', {
     id: opts.id,

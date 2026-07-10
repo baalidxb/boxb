@@ -271,6 +271,15 @@ const api = {
       const wrapped = (): void => handler();
       ipcRenderer.on(IPC.calendar.changed, wrapped);
       return () => ipcRenderer.removeListener(IPC.calendar.changed, wrapped);
+    },
+    generateBrief: (
+      event: unknown
+    ): Promise<{ ok: boolean; text?: string; error?: string }> =>
+      ipcRenderer.invoke(IPC.calendar.generateBrief, event),
+    onOpenBrief: (handler: (event: unknown) => void): (() => void) => {
+      const wrapped = (_e: IpcRendererEvent, event: unknown): void => handler(event);
+      ipcRenderer.on(IPC.calendar.openBrief, wrapped);
+      return () => ipcRenderer.removeListener(IPC.calendar.openBrief, wrapped);
     }
   },
   scanner: {

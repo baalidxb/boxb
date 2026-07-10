@@ -189,6 +189,10 @@ declare global {
           force?: boolean;
         }) => Promise<{ events: CalendarEvent[]; statuses: CalendarFetchStatus[] }>;
         onChanged: (handler: () => void) => () => void;
+        generateBrief: (
+          event: CalendarEvent
+        ) => Promise<{ ok: boolean; text?: string; error?: string }>;
+        onOpenBrief: (handler: (event: CalendarEvent) => void) => () => void;
       };
       scanner: {
         listRepos: () => Promise<ProtectedRepo[]>;

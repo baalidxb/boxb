@@ -128,6 +128,11 @@ export interface CalendarEvent {
   start: number;
   end: number;
   allDay: boolean;
+  // Phase 9.9 (AI meeting briefs): extra context for the brief view.
+  // description is capped at 2000 chars; attendees are display names
+  // (CN param) or email addresses, capped at 15.
+  description: string | null;
+  attendees: string[];
 }
 
 // Per-source fetch outcome so the panel can show partial failures ("DEF

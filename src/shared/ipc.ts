@@ -190,7 +190,15 @@ export const IPC = Object.freeze({
     // in-memory TTL (the panel's Refresh button).
     getEvents: 'calendar:get-events',
     // Main → all renderers: source list changed; panels re-list.
-    changed: 'calendar:changed'
+    changed: 'calendar:changed',
+    // Phase 9.9: AI meeting briefs.
+    // Main → primary renderer: open the brief modal for this event
+    // (pre-meeting toast was clicked). Payload is the CalendarEvent.
+    openBrief: 'calendar:open-brief',
+    // Renderer → main: generate the AI prep text for an event via the
+    // user's Anthropic key. Returns { ok, text? , error? }; callers show
+    // event details regardless — AI text is an enhancement.
+    generateBrief: 'calendar:generate-brief'
   },
   scanner: {
     // Renderer → main: list the user's protected repos (from

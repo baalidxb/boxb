@@ -79,6 +79,7 @@ export function CalendarPanel(): JSX.Element {
   const addSource = useCalendarStore((s) => s.addSource);
   const removeSource = useCalendarStore((s) => s.removeSource);
   const clearAddError = useCalendarStore((s) => s.clearAddError);
+  const openBrief = useCalendarStore((s) => s.openBrief);
 
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState('');
@@ -303,9 +304,17 @@ export function CalendarPanel(): JSX.Element {
                   {bucket.events.map((ev) => {
                     const src = sourceById.get(ev.calendarId);
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={`${ev.id}:${bucket.dayStart}`}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-surface border-[0.5px] border-[#1A1A1A]"
+                        onClick={() => openBrief(ev)}
+                        title="Open meeting brief"
+                        className={[
+                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left',
+                          'bg-surface border-[0.5px] border-[#1A1A1A]',
+                          'transition-colors duration-150 hover:border-accent',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+                        ].join(' ')}
                       >
                         <span
                           className="w-2.5 h-2.5 rounded-full shrink-0"
@@ -323,7 +332,7 @@ export function CalendarPanel(): JSX.Element {
                             {ev.location}
                           </span>
                         )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>

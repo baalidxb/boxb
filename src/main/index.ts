@@ -16,7 +16,7 @@ import { registerAiIpc } from './command-bar-ai';
 import { registerOnboardingIpc } from './onboarding-state';
 import { registerScannerIpc } from './scanner/ipc';
 import { initReminders, registerRemindersIpc } from './reminders';
-import { registerCalendarIpc } from './calendar';
+import { initCalendar, registerCalendarIpc } from './calendar';
 import { IPC } from '@shared/ipc';
 
 // AUMID is harmless to set even though we no longer rely on Windows toast
@@ -184,6 +184,9 @@ if (!gotLock) {
     // and their clicks have a window to focus.
     initReminders();
     dlog('APP:reminders-initialized');
+    // Phase 9.9: background calendar refresh + pre-meeting alert sweep.
+    initCalendar();
+    dlog('APP:calendar-initialized');
 
     app.on('activate', () => {
       dlog('APP:activate');

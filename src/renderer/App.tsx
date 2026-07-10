@@ -20,6 +20,7 @@ import { HelpModal } from './components/HelpModal';
 import { SecurityPanel } from './components/SecurityPanel';
 import { RemindersPanel } from './components/RemindersPanel';
 import { CalendarPanel } from './components/CalendarPanel';
+import { MeetingBriefModal } from './components/MeetingBriefModal';
 import {
   applyBroadcastSnapshot,
   ensureWorkspacesInitialized,
@@ -189,6 +190,14 @@ export default function App(): JSX.Element {
     void useCalendarStore.getState().hydrate();
     return window.boxb.calendar.onChanged(() => {
       void useCalendarStore.getState().hydrate();
+    });
+  }, []);
+
+  // Phase 9.9: pre-meeting toast clicked → open the brief modal (primary
+  // window only — main targets getMainWindow()).
+  useEffect(() => {
+    return window.boxb.calendar.onOpenBrief((event) => {
+      useCalendarStore.getState().openBrief(event);
     });
   }, []);
 
@@ -478,6 +487,12 @@ export default function App(): JSX.Element {
           return;
         }
         const calendarState = useCalendarStore.getState();
+        if (calendarState.briefEvent) {
+          // Brief modal sits above the calendar panel — close it first.
+          e.preventDefault();
+          calendarState.closeBrief();
+          return;
+        }
         if (calendarState.panelOpen) {
           e.preventDefault();
           calendarState.closePanel();
@@ -757,6 +772,10 @@ export default function App(): JSX.Element {
           tutorialOpen flag (auto-shown once on first launch in the primary,
           non-managed window). The help modal is reachable anytime via the
           TopBar "?" button, including in managed installs. */}
+      {/* Phase 9.9: meeting brief — self-gates on briefEvent in the
+          calendar store. Rendered at App level so pre-meeting toast
+          clicks work even when the calendar panel is closed. */}
+      <MeetingBriefModal />
       <OnboardingTutorial />
       <HelpModal />
     </div>

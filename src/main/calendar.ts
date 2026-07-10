@@ -9,6 +9,9 @@ import type {
 import { IPC } from '@shared/ipc';
 import { dlog } from './debug-log';
 import { getAllWindows } from './windows';
+import { getMainWindow } from './window';
+import { showToast } from './in-app-toast';
+import { generateMeetingBrief } from './brief-ai';
 
 // Phase 9.8: calendar unified view. Sources are secret ICS URLs the user
 // pastes (Google/Outlook read-only links). Main owns boxb-calendars.json,
@@ -260,6 +263,8 @@ interface RawVevent {
   uid: string;
   summary: string;
   location: string | null;
+  description: string | null;
+  attendees: string[];
   start: ParsedDate | null;
   end: ParsedDate | null;
   durationMs: number | null;
@@ -278,6 +283,8 @@ function parseVevents(icsText: string): RawVevent[] {
         uid: '',
         summary: '',
         location: null,
+        description: null,
+        attendees: [],
         start: null,
         end: null,
         durationMs: null,
@@ -305,6 +312,20 @@ function parseVevents(icsText: string): RawVevent[] {
       case 'LOCATION': {
         const loc = unescapeIcsText(prop.value).trim();
         cur.location = loc || null;
+        break;
+      }
+      case 'DESCRIPTION': {
+        const desc = unescapeIcsText(prop.value).trim();
+        cur.description = desc ? desc.slice(0, 2000) : null;
+        break;
+      }
+      case 'ATTENDEE': {
+        if (cur.attendees.length >= 15) break;
+        // Prefer the display name (CN); fall back to the mailto address.
+        const cn = prop.params['CN'];
+        const mail = prop.value.replace(/^mailto:/i, '').trim();
+        const label = (cn && cn.trim()) || mail;
+        if (label) cur.attendees.push(label.slice(0, 80));
         break;
       }
       case 'DTSTART':
@@ -568,7 +589,9 @@ function eventsFromIcs(
       location: ev.location,
       start: occStart,
       end: occStart + durationMs,
-      allDay: startInfo.allDay
+      allDay: startInfo.allDay,
+      description: ev.description,
+      attendees: ev.attendees
     });
 
     const rule = ev.rrule && ev.recurrenceId === null ? parseRrule(ev.rrule) : null;
@@ -676,6 +699,89 @@ async function refreshSource(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Phase 9.9: pre-meeting alerts
+// ---------------------------------------------------------------------------
+
+const ALERT_LEAD_MS = 15 * 60 * 1000;
+const ALLDAY_ALERT_HOUR = 9; // all-day events alert at 09:00 local that day
+// Don't alert for events whose alert moment passed more than this long ago
+// (prevents an alert storm right after launch/wake).
+const ALERT_GRACE_MS = 10 * 60 * 1000;
+const ALERT_SWEEP_MS = 60 * 1000;
+const BG_REFRESH_MS = 10 * 60 * 1000;
+
+const alertedEventIds = new Set<string>();
+
+function alertTimeFor(ev: CalendarEvent): number {
+  if (ev.allDay) {
+    const d = new Date(ev.start);
+    return new Date(
+      d.getFullYear(),
+      d.getMonth(),
+      d.getDate(),
+      ALLDAY_ALERT_HOUR
+    ).getTime();
+  }
+  return ev.start - ALERT_LEAD_MS;
+}
+
+function openBriefInPrimary(ev: CalendarEvent): void {
+  const win = getMainWindow();
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  if (!win.isVisible()) win.show();
+  win.focus();
+  win.webContents.send(IPC.calendar.openBrief, ev);
+}
+
+function sweepAlerts(): void {
+  const now = Date.now();
+  for (const s of sources) {
+    const c = cache.get(s.id);
+    if (!c) continue;
+    for (const ev of c.events) {
+      if (alertedEventIds.has(ev.id)) continue;
+      const at = alertTimeFor(ev);
+      if (now < at || now - at > ALERT_GRACE_MS) continue;
+      if (now >= ev.end) continue;
+      alertedEventIds.add(ev.id);
+      const timeLabel = ev.allDay
+        ? 'Today, all day'
+        : new Date(ev.start).toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit'
+          });
+      dlog('CALENDAR:alert', { id: ev.id, title: ev.title });
+      showToast({
+        id: `brief:${ev.id}`,
+        title: ev.allDay ? 'Today' : 'Meeting in 15 minutes',
+        body: `${ev.title} — ${timeLabel}${ev.location ? ` · ${ev.location}` : ''}`,
+        sticky: true,
+        onClick: () => openBriefInPrimary(ev)
+      });
+    }
+  }
+  // Unbounded growth guard — ids include the occurrence start, so old
+  // entries never match again; just cap the set size.
+  if (alertedEventIds.size > 2000) alertedEventIds.clear();
+}
+
+// Background refresh keeps alerts working while the panel is closed.
+// TTL inside refreshSource makes this cheap when data is already fresh.
+export function initCalendar(): void {
+  load();
+  const tick = async (): Promise<void> => {
+    if (sources.length === 0) return;
+    await Promise.all(sources.map((s) => refreshSource(s, false)));
+    sweepAlerts();
+  };
+  void tick();
+  setInterval(() => void tick(), BG_REFRESH_MS);
+  setInterval(sweepAlerts, ALERT_SWEEP_MS);
+  dlog('CALENDAR:init', { sources: sources.length });
+}
+
 export function registerCalendarIpc(): void {
   load();
 
@@ -759,6 +865,38 @@ export function registerCalendarIpc(): void {
       }
       events.sort((a, b) => a.start - b.start || a.end - b.end);
       return { events, statuses };
+    }
+  );
+
+  ipcMain.handle(
+    IPC.calendar.generateBrief,
+    async (
+      _event,
+      payload: unknown
+    ): Promise<{ ok: boolean; text?: string; error?: string }> => {
+      const ev = payload as Partial<CalendarEvent> | null;
+      if (
+        !ev ||
+        typeof ev.title !== 'string' ||
+        typeof ev.start !== 'number' ||
+        typeof ev.end !== 'number'
+      ) {
+        return { ok: false, error: 'invalid event' };
+      }
+      return generateMeetingBrief({
+        id: typeof ev.id === 'string' ? ev.id : '',
+        calendarId: typeof ev.calendarId === 'string' ? ev.calendarId : '',
+        title: ev.title.slice(0, 300),
+        location: typeof ev.location === 'string' ? ev.location.slice(0, 300) : null,
+        start: ev.start,
+        end: ev.end,
+        allDay: Boolean(ev.allDay),
+        description:
+          typeof ev.description === 'string' ? ev.description.slice(0, 2000) : null,
+        attendees: Array.isArray(ev.attendees)
+          ? ev.attendees.filter((a): a is string => typeof a === 'string').slice(0, 15)
+          : []
+      });
     }
   );
 }

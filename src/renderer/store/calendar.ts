@@ -22,6 +22,13 @@ interface CalendarStore {
   // True while addSource validates the pasted link (it fetches once).
   adding: boolean;
 
+  // Phase 9.9: meeting brief modal. Opens from a pre-meeting toast click
+  // (main → openBrief) or from clicking an event row in the panel.
+  briefEvent: CalendarEvent | null;
+  briefText: string | null;
+  briefLoading: boolean;
+  briefError: string | null;
+
   hydrate: () => Promise<void>;
   openPanel: () => void;
   closePanel: () => void;
@@ -31,6 +38,10 @@ interface CalendarStore {
   addSource: (name: string, url: string) => Promise<boolean>;
   removeSource: (id: string) => Promise<void>;
   clearAddError: () => void;
+
+  openBrief: (event: CalendarEvent) => void;
+  closeBrief: () => void;
+  generateBrief: () => Promise<void>;
 }
 
 export const useCalendarStore = create<CalendarStore>()((set, get) => ({
@@ -42,6 +53,10 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
   loading: false,
   addError: null,
   adding: false,
+  briefEvent: null,
+  briefText: null,
+  briefLoading: false,
+  briefError: null,
 
   hydrate: async () => {
     try {
@@ -121,5 +136,39 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
     }
   },
 
-  clearAddError: () => set({ addError: null })
+  clearAddError: () => set({ addError: null }),
+
+  openBrief: (event) =>
+    set({ briefEvent: event, briefText: null, briefError: null, briefLoading: false }),
+
+  closeBrief: () =>
+    set({ briefEvent: null, briefText: null, briefError: null, briefLoading: false }),
+
+  generateBrief: async () => {
+    const ev = get().briefEvent;
+    if (!ev || get().briefLoading) return;
+    set({ briefLoading: true, briefError: null });
+    try {
+      const result = await window.boxb.calendar.generateBrief(ev);
+      // The modal may have been closed (or switched to another event)
+      // while the API call was in flight — drop a stale answer.
+      if (get().briefEvent?.id !== ev.id) return;
+      if (result.ok && result.text) {
+        set({ briefText: result.text });
+      } else if (result.error === 'no-key') {
+        set({
+          briefError:
+            'Set your Anthropic API key (tray menu) to get AI prep notes.'
+        });
+      } else {
+        set({ briefError: 'AI brief unavailable right now.' });
+      }
+    } catch {
+      if (get().briefEvent?.id === ev.id) {
+        set({ briefError: 'AI brief unavailable right now.' });
+      }
+    } finally {
+      if (get().briefEvent?.id === ev.id) set({ briefLoading: false });
+    }
+  }
 }));
