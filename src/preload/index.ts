@@ -282,6 +282,20 @@ const api = {
       return () => ipcRenderer.removeListener(IPC.calendar.openBrief, wrapped);
     }
   },
+  bridge: {
+    onOpen: (handler: (payload: { text: string }) => void): (() => void) => {
+      const wrapped = (_e: IpcRendererEvent, payload: { text: string }): void =>
+        handler(payload);
+      ipcRenderer.on(IPC.bridge.open, wrapped);
+      return () => ipcRenderer.removeListener(IPC.bridge.open, wrapped);
+    },
+    run: (payload: {
+      action: string;
+      text: string;
+      question?: string;
+    }): Promise<{ ok: boolean; text?: string; error?: string }> =>
+      ipcRenderer.invoke(IPC.bridge.run, payload)
+  },
   scanner: {
     listRepos: (): Promise<unknown[]> =>
       ipcRenderer.invoke(IPC.scanner.listRepos),

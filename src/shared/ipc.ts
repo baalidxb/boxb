@@ -200,6 +200,16 @@ export const IPC = Object.freeze({
     // event details regardless — AI text is an enhancement.
     generateBrief: 'calendar:generate-brief'
   },
+  bridge: {
+    // Phase 9.10 (Context Bridge): main → host renderer. The user picked
+    // "Ask AI about selection" from a right-click menu in any webview (or
+    // pressed Ctrl+Shift+K with empty text). Payload: { text }.
+    open: 'bridge:open',
+    // Renderer → main: run an AI action over the text. Payload
+    // { action, text, question? } → { ok, text?, error? }. Uses the same
+    // BYOK Anthropic key as the command bar and meeting briefs.
+    run: 'bridge:run'
+  },
   scanner: {
     // Renderer → main: list the user's protected repos (from
     // boxb-scanner.json). Renderer mirrors into its store on panel open.

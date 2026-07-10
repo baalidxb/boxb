@@ -194,6 +194,14 @@ declare global {
         ) => Promise<{ ok: boolean; text?: string; error?: string }>;
         onOpenBrief: (handler: (event: CalendarEvent) => void) => () => void;
       };
+      bridge: {
+        onOpen: (handler: (payload: { text: string }) => void) => () => void;
+        run: (payload: {
+          action: string;
+          text: string;
+          question?: string;
+        }) => Promise<{ ok: boolean; text?: string; error?: string }>;
+      };
       scanner: {
         listRepos: () => Promise<ProtectedRepo[]>;
         pickFolder: () => Promise<string | null>;

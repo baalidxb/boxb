@@ -21,6 +21,7 @@ import { SecurityPanel } from './components/SecurityPanel';
 import { RemindersPanel } from './components/RemindersPanel';
 import { CalendarPanel } from './components/CalendarPanel';
 import { MeetingBriefModal } from './components/MeetingBriefModal';
+import { ContextBridgeModal } from './components/ContextBridgeModal';
 import {
   applyBroadcastSnapshot,
   ensureWorkspacesInitialized,
@@ -33,6 +34,7 @@ import { useOnboardingStore } from './store/onboarding';
 import { useScannerStore } from './store/scanner';
 import { useRemindersStore } from './store/reminders';
 import { useCalendarStore } from './store/calendar';
+import { useBridgeStore } from './store/bridge';
 import { catalog } from '../catalog/apps';
 import type { CommandBarAction, ManagedConfigFile } from '@shared/types';
 
@@ -198,6 +200,14 @@ export default function App(): JSX.Element {
   useEffect(() => {
     return window.boxb.calendar.onOpenBrief((event) => {
       useCalendarStore.getState().openBrief(event);
+    });
+  }, []);
+
+  // Phase 9.10: "Ask AI about selection" from a webview right-click. Main
+  // targets the window that embeds the webview, so this is per-window.
+  useEffect(() => {
+    return window.boxb.bridge.onOpen(({ text }) => {
+      useBridgeStore.getState().openWith(typeof text === 'string' ? text : '');
     });
   }, []);
 
@@ -428,6 +438,16 @@ export default function App(): JSX.Element {
         return;
       }
 
+      // Ctrl+Shift+K: open the Context Bridge modal empty (paste flow).
+      // Checked before Ctrl+K so the shift variant doesn't fall through.
+      if (cmdOrCtrl && e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        const bridge = useBridgeStore.getState();
+        if (bridge.open) bridge.close();
+        else bridge.openWith('');
+        return;
+      }
+
       // Ctrl+K (Cmd+K on macOS): open the command bar. Replaces the
       // Phase 3 behavior where Ctrl+K opened AddAppModal directly —
       // "add custom URL" is now reachable via the bar's add-custom action.
@@ -484,6 +504,12 @@ export default function App(): JSX.Element {
         if (remindersState.panelOpen) {
           e.preventDefault();
           remindersState.closePanel();
+          return;
+        }
+        const bridgeState = useBridgeStore.getState();
+        if (bridgeState.open) {
+          e.preventDefault();
+          bridgeState.close();
           return;
         }
         const calendarState = useCalendarStore.getState();
@@ -776,6 +802,8 @@ export default function App(): JSX.Element {
           calendar store. Rendered at App level so pre-meeting toast
           clicks work even when the calendar panel is closed. */}
       <MeetingBriefModal />
+      {/* Phase 9.10: Context Bridge — self-gates on its store's open flag. */}
+      <ContextBridgeModal />
       <OnboardingTutorial />
       <HelpModal />
     </div>

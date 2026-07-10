@@ -17,6 +17,7 @@ import { registerOnboardingIpc } from './onboarding-state';
 import { registerScannerIpc } from './scanner/ipc';
 import { initReminders, registerRemindersIpc } from './reminders';
 import { initCalendar, registerCalendarIpc } from './calendar';
+import { registerBridgeIpc } from './bridge-ai';
 import { IPC } from '@shared/ipc';
 
 // AUMID is harmless to set even though we no longer rely on Windows toast
@@ -148,6 +149,8 @@ if (!gotLock) {
     dlog('APP:reminders-ipc-registered');
     registerCalendarIpc();
     dlog('APP:calendar-ipc-registered');
+    registerBridgeIpc();
+    dlog('APP:bridge-ipc-registered');
     // Detect any pending managed config BEFORE the main window mounts so
     // the renderer's first managed:check-launch-config call sees it.
     detectLaunchConfig();
