@@ -79,6 +79,31 @@ export interface ScanReport {
   totalIssues: number;
 }
 
+// Phase 9.7: reminders + tasks. A reminder is a one-shot timed note that
+// fires an in-app toast at dueAt. `serviceId` optionally links it to a
+// service (toast click activates that service); null = no link. `firedAt`
+// tracks whether the toast already fired — a pending reminder with
+// firedAt set and dueAt in the past is "overdue" (user saw or missed the
+// toast but hasn't marked it done). Completing a reminder deletes it.
+export interface Reminder {
+  id: string;
+  text: string;
+  dueAt: number;
+  createdAt: number;
+  serviceId: string | null;
+  firedAt: number | null;
+}
+
+// Phase 9.7: a plain checklist item (no time attached). Lives in the same
+// boxb-reminders.json store. Kept deliberately flat — no nesting, no due
+// dates; timed items belong in Reminder.
+export interface TodoItem {
+  id: string;
+  text: string;
+  done: boolean;
+  createdAt: number;
+}
+
 // Phase 9.1: managed config bumps this when the schema changes. Files with
 // a higher version number are rejected on import with a "needs newer BoxB"
 // message. v1 covers: services, workspaces, hard-lock mode.
@@ -152,7 +177,8 @@ export type CommandBarActionType =
   | 'hide'
   | 'add-custom'
   | 'add-catalog-service'
-  | 'add-custom-url';
+  | 'add-custom-url'
+  | 'create-reminder';
 
 export interface CommandBarAction {
   id: string;
@@ -167,4 +193,8 @@ export interface CommandBarAction {
   iconUrl?: string;
   iconChar?: string;
   target?: string;
+  // Phase 9.7: payload for create-reminder actions. Both the rule parser
+  // ("remind me to X in 30 min") and the AI fallback fill this; the
+  // executor in App.tsx passes it to window.boxb.reminders.create().
+  reminder?: { text: string; dueAt: number };
 }

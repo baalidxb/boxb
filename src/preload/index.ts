@@ -208,6 +208,51 @@ const api = {
       lastCompletedAt: number | null;
     }> => ipcRenderer.invoke(IPC.onboarding.reset)
   },
+  reminders: {
+    list: (): Promise<{ reminders: unknown[]; todos: unknown[] }> =>
+      ipcRenderer.invoke(IPC.reminders.list),
+    create: (payload: {
+      text: string;
+      dueAt: number;
+      serviceId: string | null;
+      silent?: boolean;
+    }): Promise<{ ok: boolean; reminder?: unknown; error?: string }> =>
+      ipcRenderer.invoke(IPC.reminders.create, payload),
+    complete: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.reminders.complete, id),
+    snooze: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.reminders.snooze, id),
+    remove: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.reminders.remove, id),
+    addTodo: (text: string): Promise<{ ok: boolean; todo?: unknown }> =>
+      ipcRenderer.invoke(IPC.reminders.addTodo, text),
+    toggleTodo: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.reminders.toggleTodo, id),
+    removeTodo: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.reminders.removeTodo, id),
+    clearDoneTodos: (): Promise<number> =>
+      ipcRenderer.invoke(IPC.reminders.clearDoneTodos),
+    onChanged: (handler: () => void): (() => void) => {
+      const wrapped = (): void => handler();
+      ipcRenderer.on(IPC.reminders.changed, wrapped);
+      return () => ipcRenderer.removeListener(IPC.reminders.changed, wrapped);
+    },
+    onFocusService: (
+      handler: (payload: { serviceId: string }) => void
+    ): (() => void) => {
+      const wrapped = (
+        _e: IpcRendererEvent,
+        payload: { serviceId: string }
+      ): void => handler(payload);
+      ipcRenderer.on(IPC.reminders.focusService, wrapped);
+      return () => ipcRenderer.removeListener(IPC.reminders.focusService, wrapped);
+    },
+    onOpenPanel: (handler: () => void): (() => void) => {
+      const wrapped = (): void => handler();
+      ipcRenderer.on(IPC.reminders.openPanel, wrapped);
+      return () => ipcRenderer.removeListener(IPC.reminders.openPanel, wrapped);
+    }
+  },
   scanner: {
     listRepos: (): Promise<unknown[]> =>
       ipcRenderer.invoke(IPC.scanner.listRepos),

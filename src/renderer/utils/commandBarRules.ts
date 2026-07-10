@@ -2,6 +2,7 @@ import type { CommandBarAction } from '@shared/types';
 import type { Service } from '../store/services';
 import type { Workspace } from '@shared/types';
 import type { CatalogApp } from '@shared/catalog';
+import { formatDueTime, parseReminderQuery } from './reminderTime';
 
 // Phase 9.2 / 9.2.1: pure rule-based parser. Runs on every keystroke
 // (cheap), returns ranked CommandBarAction[]. The AI fallback only fires
@@ -253,6 +254,24 @@ function detectUrl(q: string, isManaged: boolean): string | null {
   return null;
 }
 
+// Phase 9.7: "remind me to X at 5pm" → one-shot create-reminder action.
+// Exclusive like the URL detector — a query starting with "remind" is
+// never a service search.
+function reminderAction(q: string): CommandBarAction | null {
+  const parsed = parseReminderQuery(q);
+  if (!parsed) return null;
+  return {
+    id: `remind:${parsed.dueAt}:${parsed.text}`,
+    type: 'create-reminder',
+    label: `Remind: ${parsed.text}`,
+    hint: parsed.usedDefault
+      ? `${formatDueTime(parsed.dueAt)} (in 1 hour — add "at 5pm" or "in 30 min" to change)`
+      : formatDueTime(parsed.dueAt),
+    iconKind: 'system',
+    reminder: { text: parsed.text, dueAt: parsed.dueAt }
+  };
+}
+
 export function parseQuery(rawQuery: string, ctx: RuleContext): CommandBarAction[] {
   const q = rawQuery.trim();
   if (!q) return defaultSuggestions(ctx);
@@ -261,6 +280,10 @@ export function parseQuery(rawQuery: string, ctx: RuleContext): CommandBarAction
   // "https://example.com" against service names.
   const url = detectUrl(q, ctx.isManaged);
   if (url) return [customUrlAction(url)];
+
+  // Reminder detector is equally exclusive.
+  const remind = reminderAction(q);
+  if (remind) return [remind];
 
   const sysMatch = matchSystemPhrase(q, ctx);
   if (sysMatch) return [sysMatch];

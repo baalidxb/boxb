@@ -14,6 +14,8 @@ const TOAST_CLICK = 'toast:click';
 const TOAST_DISMISSED = 'toast:dismissed';
 const UPDATE_RESTART_NOW = 'update:restart-now';
 const UPDATE_DISMISS = 'update:dismiss';
+const REMINDER_TOAST_DONE = 'reminders:toast-done';
+const REMINDER_TOAST_SNOOZE = 'reminders:toast-snooze';
 
 interface ToastPayload {
   id: string;
@@ -22,7 +24,7 @@ interface ToastPayload {
   iconDataUri?: string;
   serviceId?: string;
   timestamp: number;
-  kind?: 'notification' | 'action';
+  kind?: 'notification' | 'action' | 'reminder';
 }
 
 contextBridge.exposeInMainWorld('toastApi', {
@@ -40,5 +42,11 @@ contextBridge.exposeInMainWorld('toastApi', {
   },
   updateDismiss: (id: string): void => {
     ipcRenderer.send(UPDATE_DISMISS, { id });
+  },
+  reminderDone: (id: string): void => {
+    ipcRenderer.send(REMINDER_TOAST_DONE, { id });
+  },
+  reminderSnooze: (id: string): void => {
+    ipcRenderer.send(REMINDER_TOAST_SNOOZE, { id });
   }
 });

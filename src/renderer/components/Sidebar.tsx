@@ -1,10 +1,12 @@
+import { useEffect, useState } from 'react';
 import { useServicesStore } from '../store/services';
 import { useManagedStore } from '../store/managed';
 import { useScannerStore } from '../store/scanner';
+import { useRemindersStore } from '../store/reminders';
 import { Logo } from './Logo';
 import { ServiceIcon } from './ServiceIcon';
 import { WorkspacePill } from './WorkspacePill';
-import { GearIcon, LockIcon, PlusIcon, ShieldIcon } from './Icons';
+import { BellIcon, GearIcon, LockIcon, PlusIcon, ShieldIcon } from './Icons';
 
 export function Sidebar(): JSX.Element {
   const services = useServicesStore((s) => s.services);
@@ -22,7 +24,27 @@ export function Sidebar(): JSX.Element {
   const isManaged = useManagedStore((s) => s.isManaged);
   const managedHydrated = useManagedStore((s) => s.hydrated);
   const securityOpen = useScannerStore((s) => s.panelOpen);
-  const toggleSecurity = useScannerStore((s) => s.togglePanel);
+  const remindersOpen = useRemindersStore((s) => s.panelOpen);
+  const reminders = useRemindersStore((s) => s.reminders);
+
+  // Ticking "now" for the overdue badge — 30s granularity is plenty.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const overdueCount = reminders.filter((r) => r.dueAt <= now).length;
+
+  // The two overlay panels (Security / Reminders) are mutually exclusive —
+  // opening one closes the other so they never stack invisibly.
+  const toggleSecurity = (): void => {
+    useRemindersStore.getState().closePanel();
+    useScannerStore.getState().togglePanel();
+  };
+  const toggleReminders = (): void => {
+    useScannerStore.getState().closePanel();
+    useRemindersStore.getState().togglePanel();
+  };
 
   const isLocked = lockedWorkspaceId !== null;
   // Render the locked variant only after the managed store has hydrated —
@@ -74,6 +96,38 @@ export function Sidebar(): JSX.Element {
           ].join(' ')}
         >
           <ShieldIcon size={18} />
+        </button>
+      </div>
+
+      {/* Phase 9.7: Reminders view toggle. Overdue count badges in gold. */}
+      <div className="flex items-center justify-center pt-[10px] shrink-0">
+        <button
+          type="button"
+          onClick={toggleReminders}
+          aria-label="Reminders"
+          aria-pressed={remindersOpen}
+          title="Reminders and tasks"
+          className={[
+            'relative w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
+            'border-[0.5px] transition-all duration-150 ease-out',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+            remindersOpen
+              ? 'text-accent border-accent bg-accent/10'
+              : 'text-muted border-transparent hover:text-accent hover:border-accent'
+          ].join(' ')}
+        >
+          <BellIcon size={18} />
+          {overdueCount > 0 && (
+            <span
+              className={[
+                'absolute -top-1 -right-1 min-w-[15px] h-[15px] px-[3px]',
+                'rounded-full bg-accent text-bg text-[9px] font-bold leading-none',
+                'flex items-center justify-center pointer-events-none'
+              ].join(' ')}
+            >
+              {overdueCount > 9 ? '9+' : overdueCount}
+            </span>
+          )}
         </button>
       </div>
 

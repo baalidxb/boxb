@@ -15,6 +15,7 @@ import { detectLaunchConfig, registerManagedIpc } from './managed-config';
 import { registerAiIpc } from './command-bar-ai';
 import { registerOnboardingIpc } from './onboarding-state';
 import { registerScannerIpc } from './scanner/ipc';
+import { initReminders, registerRemindersIpc } from './reminders';
 import { IPC } from '@shared/ipc';
 
 // AUMID is harmless to set even though we no longer rely on Windows toast
@@ -142,6 +143,8 @@ if (!gotLock) {
     dlog('APP:onboarding-ipc-registered');
     registerScannerIpc();
     dlog('APP:scanner-ipc-registered');
+    registerRemindersIpc();
+    dlog('APP:reminders-ipc-registered');
     // Detect any pending managed config BEFORE the main window mounts so
     // the renderer's first managed:check-launch-config call sees it.
     detectLaunchConfig();
@@ -173,6 +176,11 @@ if (!gotLock) {
     });
     initAutoUpdater();
     dlog('APP:auto-updater-initialized');
+    // Phase 9.7: start the reminder scheduler AFTER the main window +
+    // toast window exist so startup catch-up toasts render immediately
+    // and their clicks have a window to focus.
+    initReminders();
+    dlog('APP:reminders-initialized');
 
     app.on('activate', () => {
       dlog('APP:activate');

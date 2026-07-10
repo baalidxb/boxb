@@ -43,8 +43,13 @@ const VALID_ACTION_TYPES: ReadonlySet<CommandBarActionType> = new Set<CommandBar
   'toggle-terminal',
   'quit',
   'hide',
-  'add-custom'
+  'add-custom',
+  'create-reminder'
 ]);
+
+// Reminders parsed by the AI can't be scheduled more than a year out —
+// anything past that is almost certainly a mis-parsed date.
+const MAX_REMINDER_HORIZON_MS = 365 * 24 * 60 * 60 * 1000;
 
 function buildPrompt(req: ParseRequest): string {
   const services = req.services
@@ -54,12 +59,13 @@ function buildPrompt(req: ParseRequest): string {
     .map((w) => `- id=${w.id} name="${w.name}"`)
     .join('\n');
   const actions = req.isManaged
-    ? 'open-service, switch-workspace, toggle-terminal, quit, hide'
-    : 'open-service, switch-workspace, toggle-terminal, quit, hide, add-custom';
+    ? 'open-service, switch-workspace, toggle-terminal, quit, hide, create-reminder'
+    : 'open-service, switch-workspace, toggle-terminal, quit, hide, add-custom, create-reminder';
 
   return [
     'You are a navigation assistant for BoxB, a multi-messenger desktop app.',
     `The user said: "${req.query}"`,
+    `Current local datetime: ${new Date().toString()}`,
     '',
     'Available services:',
     services || '(none)',
@@ -76,7 +82,12 @@ function buildPrompt(req: ParseRequest): string {
     '  {"action": "quit"}',
     '  {"action": "hide"}',
     req.isManaged ? '' : '  {"action": "add-custom"}',
+    '  {"action": "create-reminder", "text": "<what to remind>", "when": "<ISO 8601 datetime with timezone offset>"}',
     '  {"action": "none"}    -- if the request is unclear or unsupported',
+    '',
+    'For create-reminder: resolve relative times ("in 20 minutes", "after lunch",',
+    '"tonight") against the current local datetime above. "after lunch" ≈ 14:00,',
+    '"tonight" ≈ 20:00, "morning" ≈ 09:00. If no time is given, use one hour from now.',
     '',
     'No prose, no code fences, just the JSON object.'
   ]
@@ -149,6 +160,9 @@ function extractJson(raw: string): string | null {
 interface ModelResponse {
   action?: unknown;
   target?: unknown;
+  // create-reminder payload (Phase 9.7)
+  text?: unknown;
+  when?: unknown;
 }
 
 function buildAction(
@@ -215,6 +229,26 @@ function buildAction(
       type: 'add-custom',
       label: 'Add custom URL',
       iconKind: 'system'
+    };
+  }
+  if (action === 'create-reminder') {
+    if (typeof parsed.text !== 'string' || !parsed.text.trim()) return null;
+    if (typeof parsed.when !== 'string') return null;
+    const t = Date.parse(parsed.when);
+    if (!Number.isFinite(t)) return null;
+    const now = Date.now();
+    if (t > now + MAX_REMINDER_HORIZON_MS) return null;
+    // Slightly-past parses (model rounding) clamp to "shortly from now"
+    // rather than failing — the intent to be reminded is clear.
+    const dueAt = Math.max(t, now + 5000);
+    const text = parsed.text.trim().slice(0, 200);
+    return {
+      id: `ai:remind:${dueAt}`,
+      type: 'create-reminder',
+      label: `Remind: ${text}`,
+      hint: new Date(dueAt).toLocaleString(),
+      iconKind: 'system',
+      reminder: { text, dueAt }
     };
   }
   return null;

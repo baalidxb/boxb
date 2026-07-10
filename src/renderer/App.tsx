@@ -18,6 +18,7 @@ import { SetApiKeyModal } from './components/SetApiKeyModal';
 import { OnboardingTutorial } from './components/OnboardingTutorial';
 import { HelpModal } from './components/HelpModal';
 import { SecurityPanel } from './components/SecurityPanel';
+import { RemindersPanel } from './components/RemindersPanel';
 import {
   applyBroadcastSnapshot,
   ensureWorkspacesInitialized,
@@ -28,6 +29,7 @@ import { useManagedStore } from './store/managed';
 import { useCommandBarStore } from './store/commandBar';
 import { useOnboardingStore } from './store/onboarding';
 import { useScannerStore } from './store/scanner';
+import { useRemindersStore } from './store/reminders';
 import { catalog } from '../catalog/apps';
 import type { CommandBarAction, ManagedConfigFile } from '@shared/types';
 
@@ -50,6 +52,7 @@ export default function App(): JSX.Element {
   const openRenameService = useServicesStore((s) => s.openRenameService);
   const isManaged = useManagedStore((s) => s.isManaged);
   const securityPanelOpen = useScannerStore((s) => s.panelOpen);
+  const remindersPanelOpen = useRemindersStore((s) => s.panelOpen);
 
   // Phase 9.1: per-window managed-mode UI state. Modal opens are local
   // to this window — the export modal is admin-only and never appears in
@@ -167,6 +170,43 @@ export default function App(): JSX.Element {
     void useScannerStore.getState().hydrate();
   }, []);
 
+  // Phase 9.7: hydrate reminders + todos on mount, and re-hydrate on every
+  // main-side change broadcast (scheduler fired, toast button, another
+  // window's panel). Keeps the bell badge live in all windows.
+  useEffect(() => {
+    void useRemindersStore.getState().hydrate();
+    return window.boxb.reminders.onChanged(() => {
+      void useRemindersStore.getState().hydrate();
+    });
+  }, []);
+
+  // Reminder toast click → focus the linked service (primary window only —
+  // main targets getMainWindow()). Same switch-workspace-then-activate
+  // dance as native notification clicks.
+  useEffect(() => {
+    return window.boxb.reminders.onFocusService(({ serviceId }) => {
+      // Close overlay panels first — otherwise the activated service sits
+      // hidden behind the Reminders/Security view (acceptance-test catch).
+      useRemindersStore.getState().closePanel();
+      useScannerStore.getState().closePanel();
+      const state = useServicesStore.getState();
+      const svc = state.services.find((s) => s.id === serviceId);
+      if (!svc) return;
+      if (svc.workspaceId && svc.workspaceId !== state.activeWorkspaceId) {
+        state.setActiveWorkspace(svc.workspaceId);
+      }
+      state.setActiveService(svc.id);
+    });
+  }, []);
+
+  // Reminder toast click (unlinked) / missed summary → open the panel.
+  useEffect(() => {
+    return window.boxb.reminders.onOpenPanel(() => {
+      useScannerStore.getState().closePanel();
+      useRemindersStore.getState().openPanel();
+    });
+  }, []);
+
   // Phase 9.5: first-launch onboarding tour. Auto-show only when:
   //   - this is the primary window (secondary windows never trigger it),
   //   - the tour hasn't already been completed/skipped on this install, and
@@ -262,6 +302,18 @@ export default function App(): JSX.Element {
           ...(entry.userAgent ? { userAgent: entry.userAgent } : {})
         });
         svcState.setActiveService(id);
+        return;
+      }
+      case 'create-reminder': {
+        // Phase 9.7: non-silent create → main shows a "Reminder set" toast,
+        // which is the user's confirmation since the bar closes instantly.
+        const r = action.reminder;
+        if (!r || !r.text.trim()) return;
+        void window.boxb.reminders.create({
+          text: r.text.trim(),
+          dueAt: r.dueAt,
+          serviceId: null
+        });
         return;
       }
       case 'add-custom-url': {
@@ -405,6 +457,12 @@ export default function App(): JSX.Element {
         if (scanner.panelOpen) {
           e.preventDefault();
           scanner.closePanel();
+          return;
+        }
+        const remindersState = useRemindersStore.getState();
+        if (remindersState.panelOpen) {
+          e.preventDefault();
+          remindersState.closePanel();
           return;
         }
         // Command bar gets first dibs — its own input also handles Esc,
@@ -607,6 +665,9 @@ export default function App(): JSX.Element {
               Rendered over (not instead of) the webviews so toggling back
               doesn't reload any service. */}
           {securityPanelOpen && <SecurityPanel />}
+          {/* Phase 9.7: Reminders view — same overlay pattern. The sidebar
+              toggles make Security and Reminders mutually exclusive. */}
+          {remindersPanelOpen && <RemindersPanel />}
         </div>
         <TerminalPanel ref={terminalPanelRef} />
       </div>

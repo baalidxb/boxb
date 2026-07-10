@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { DetailedHTMLProps, HTMLAttributes } from 'react';
-import type { ProtectedRepo, ScanReport } from '@shared/types';
+import type { ProtectedRepo, Reminder, ScanReport, TodoItem } from '@shared/types';
 
 interface WebviewAttributes {
   src?: string;
@@ -148,6 +148,27 @@ declare global {
           hasCompletedTutorial: boolean;
           lastCompletedAt: number | null;
         }>;
+      };
+      reminders: {
+        list: () => Promise<{ reminders: Reminder[]; todos: TodoItem[] }>;
+        create: (payload: {
+          text: string;
+          dueAt: number;
+          serviceId: string | null;
+          silent?: boolean;
+        }) => Promise<{ ok: boolean; reminder?: Reminder; error?: string }>;
+        complete: (id: string) => Promise<boolean>;
+        snooze: (id: string) => Promise<boolean>;
+        remove: (id: string) => Promise<boolean>;
+        addTodo: (text: string) => Promise<{ ok: boolean; todo?: TodoItem }>;
+        toggleTodo: (id: string) => Promise<boolean>;
+        removeTodo: (id: string) => Promise<boolean>;
+        clearDoneTodos: () => Promise<number>;
+        onChanged: (handler: () => void) => () => void;
+        onFocusService: (
+          handler: (payload: { serviceId: string }) => void
+        ) => () => void;
+        onOpenPanel: (handler: () => void) => () => void;
       };
       scanner: {
         listRepos: () => Promise<ProtectedRepo[]>;

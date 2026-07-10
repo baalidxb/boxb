@@ -143,6 +143,39 @@ export const IPC = Object.freeze({
     // first-launch auto-show on next launch). Returns the reset state.
     reset: 'onboarding:reset'
   },
+  reminders: {
+    // Renderer → main: read all reminders + todos from boxb-reminders.json.
+    // Renderer mirrors into its store on mount and on every `changed` event.
+    list: 'reminders:list',
+    // Renderer → main: create a reminder { text, dueAt, serviceId, silent }.
+    // Non-silent creates (command bar) also show a "Reminder set" toast so
+    // the user gets feedback after the bar closes.
+    create: 'reminders:create',
+    // Renderer → main: mark done (deletes the reminder).
+    complete: 'reminders:complete',
+    // Renderer → main: push dueAt 10 minutes out and re-arm.
+    snooze: 'reminders:snooze',
+    // Renderer → main: delete without completing.
+    remove: 'reminders:remove',
+    // Todos share the store file; same list/changed flow.
+    addTodo: 'reminders:add-todo',
+    toggleTodo: 'reminders:toggle-todo',
+    removeTodo: 'reminders:remove-todo',
+    clearDoneTodos: 'reminders:clear-done-todos',
+    // Main → all renderers: reminders/todos changed (any source: panel in
+    // another window, toast button, scheduler firing). Renderers re-list.
+    changed: 'reminders:changed',
+    // Main → primary renderer: reminder toast body was clicked and the
+    // reminder links a service — activate it.
+    focusService: 'reminders:focus-service',
+    // Main → primary renderer: open the Reminders panel (toast click on an
+    // unlinked reminder, or the missed-reminders summary toast).
+    openPanel: 'reminders:open-panel',
+    // Toast renderer → main: the "Done" / "Snooze 10m" buttons on a reminder
+    // toast. Payload carries the toast id (`reminder:<reminderId>`).
+    toastDone: 'reminders:toast-done',
+    toastSnooze: 'reminders:toast-snooze'
+  },
   scanner: {
     // Renderer → main: list the user's protected repos (from
     // boxb-scanner.json). Renderer mirrors into its store on panel open.

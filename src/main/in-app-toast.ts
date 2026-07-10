@@ -46,7 +46,7 @@ interface ShowPayload {
   body: string;
   iconUrl?: string | undefined;
   timestamp: number;
-  kind?: 'notification' | 'action';
+  kind?: 'notification' | 'action' | 'reminder';
 }
 
 const TOAST_HTML = `<!doctype html>
@@ -165,6 +165,7 @@ const TOAST_HTML = `<!doctype html>
   .toast.action {
     cursor: default;
   }
+  .toast.reminder .actions,
   .toast.action .actions {
     grid-row: 3;
     grid-column: 2 / span 2;
@@ -173,6 +174,7 @@ const TOAST_HTML = `<!doctype html>
     gap: 8px;
     justify-content: flex-end;
   }
+  .toast.reminder .btn,
   .toast.action .btn {
     pointer-events: auto;
     cursor: pointer;
@@ -186,9 +188,11 @@ const TOAST_HTML = `<!doctype html>
     color: #d4d4d4;
     transition: filter 120ms ease-out, background 120ms ease-out;
   }
+  .toast.reminder .btn:hover,
   .toast.action .btn:hover {
     filter: brightness(1.2);
   }
+  .toast.reminder .btn-primary,
   .toast.action .btn-primary {
     background: #D4AF37;
     color: #000;
@@ -233,6 +237,7 @@ const TOAST_HTML = `<!doctype html>
 
     function add(payload) {
       var isAction = payload.kind === 'action';
+      var isReminder = payload.kind === 'reminder';
 
       // Cap visible count by auto-dismissing the oldest before adding.
       while (live.size >= ${MAX_VISIBLE_TOASTS}) {
@@ -249,7 +254,7 @@ const TOAST_HTML = `<!doctype html>
       }
 
       var el = document.createElement('div');
-      el.className = 'toast' + (isAction ? ' action' : '');
+      el.className = 'toast' + (isAction ? ' action' : '') + (isReminder ? ' reminder' : '');
       el.setAttribute('role', 'alert');
       var iconsHtml = '<div class="icons">' + BRAND_SVG;
       if (!isAction && payload.iconUrl) {
@@ -259,15 +264,45 @@ const TOAST_HTML = `<!doctype html>
       var titleHtml = '<div class="title">' + escapeText(payload.title || 'BoxB') + '</div>';
       var timeHtml = isAction ? '' : '<div class="time">now</div>';
       var bodyHtml = '<div class="body">' + escapeText(payload.body || '') + '</div>';
-      var actionsHtml = isAction
-        ? '<div class="actions">'
+      var actionsHtml = '';
+      if (isAction) {
+        actionsHtml = '<div class="actions">'
           + '<button type="button" class="btn btn-later">Later</button>'
           + '<button type="button" class="btn btn-primary btn-restart">Restart</button>'
-          + '</div>'
-        : '';
+          + '</div>';
+      } else if (isReminder) {
+        actionsHtml = '<div class="actions">'
+          + '<button type="button" class="btn btn-snooze">Snooze 10m</button>'
+          + '<button type="button" class="btn btn-primary btn-done">Done</button>'
+          + '</div>';
+      }
       el.innerHTML = iconsHtml + titleHtml + timeHtml + bodyHtml + actionsHtml;
 
-      if (isAction) {
+      if (isReminder) {
+        // Reminder toasts: buttons handle Done/Snooze; clicking anywhere
+        // else on the card behaves like a notification click (main focuses
+        // the linked service or opens the Reminders panel).
+        var doneBtn = el.querySelector('.btn-done');
+        var snoozeBtn = el.querySelector('.btn-snooze');
+        if (doneBtn) {
+          doneBtn.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            try { window.toastApi.reminderDone(payload.id); } catch (e) {}
+            dismiss(payload.id);
+          });
+        }
+        if (snoozeBtn) {
+          snoozeBtn.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            try { window.toastApi.reminderSnooze(payload.id); } catch (e) {}
+            dismiss(payload.id);
+          });
+        }
+        el.addEventListener('click', function () {
+          try { window.toastApi.click(payload.id); } catch (e) {}
+          dismiss(payload.id);
+        });
+      } else if (isAction) {
         var restartBtn = el.querySelector('.btn-restart');
         var laterBtn = el.querySelector('.btn-later');
         if (restartBtn) {
@@ -297,7 +332,9 @@ const TOAST_HTML = `<!doctype html>
       el.classList.add('in');
 
       var timeEl = el.querySelector('.time');
-      var dismissMs = isAction ? ${ACTION_AUTO_DISMISS_MS} : ${AUTO_DISMISS_MS};
+      // Reminders use the long timeout too — the whole point is catching
+      // the user when they come back to the desk.
+      var dismissMs = (isAction || isReminder) ? ${ACTION_AUTO_DISMISS_MS} : ${AUTO_DISMISS_MS};
       var entry = {
         el: el,
         payload: payload,
@@ -451,6 +488,35 @@ export function showToast(opts: ShowOptions): void {
     title: opts.title,
     bodyLen: opts.body.length,
     hasIcon: !!opts.iconUrl
+  });
+  if (rendererReady) {
+    sendToRenderer(payload);
+  } else {
+    pendingShows.push(payload);
+  }
+}
+
+// Phase 9.7: reminder toasts. Done/Snooze buttons are wired renderer-side to
+// reminders:toast-* IPC channels (handled in reminders.ts); the whole-card
+// click still goes through the normal callbacks map so main can focus the
+// linked service or open the Reminders panel.
+export function showReminderToast(opts: ShowOptions): void {
+  if (!toastWindow) {
+    dlog('TOAST:reminder-show-before-init', { id: opts.id });
+    return;
+  }
+  callbacks.set(opts.id, opts);
+  const payload: ShowPayload = {
+    id: opts.id,
+    title: opts.title,
+    body: opts.body,
+    timestamp: Date.now(),
+    kind: 'reminder'
+  };
+  dlog('TOAST:reminder-show', {
+    id: opts.id,
+    title: opts.title,
+    bodyLen: opts.body.length
   });
   if (rendererReady) {
     sendToRenderer(payload);
