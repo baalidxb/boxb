@@ -10,6 +10,20 @@ import {
 import { SearchIcon } from './Icons';
 
 const URL_RE = /^https?:\/\/.+/;
+// Bare domains ("goconsole.com", "crm.acme.com/login") are accepted and
+// upgraded to https:// — users rarely type the scheme. Anything with spaces
+// or no dot is rejected.
+const HOSTLIKE_RE = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(?::\d+)?(\/\S*)?$/i;
+
+// Returns the URL BoxB will actually use, or null when the input can't be
+// made into one. Shared by validation and submit so they never disagree.
+function normalizeUrlInput(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (URL_RE.test(v)) return v;
+  if (HOSTLIKE_RE.test(v)) return `https://${v}`;
+  return null;
+}
 
 function matches(app: CatalogApp, query: string): boolean {
   const haystack = (app.name + ' ' + app.category).toLowerCase();
@@ -147,7 +161,7 @@ export function AddAppModal(): JSX.Element | null {
     if (templateSource) return;
     if (!customUrl) return;
     if (!customIcon || iconAutoFilled) {
-      const fav = faviconUrlFor(customUrl);
+      const fav = faviconUrlFor(normalizeUrlInput(customUrl) ?? customUrl);
       if (fav) {
         setCustomIcon(fav);
         setIconAutoFilled(true);
@@ -157,18 +171,30 @@ export function AddAppModal(): JSX.Element | null {
 
   const customNameTrimmed = customName.trim();
   const trimmedUrl = customUrl.trim();
+  const normalizedUrl = normalizeUrlInput(trimmedUrl);
   const placeholderStillPresent =
     !!templateSource?.templatePlaceholder &&
     trimmedUrl.includes(templateSource.templatePlaceholder);
-  const isCustomValid =
-    URL_RE.test(trimmedUrl) &&
-    customNameTrimmed.length > 0 &&
-    customNameTrimmed.length <= 40 &&
-    !placeholderStillPresent;
+  const urlOk = normalizedUrl !== null && !placeholderStillPresent;
+  const nameOk = customNameTrimmed.length > 0 && customNameTrimmed.length <= 40;
+  const isCustomValid = urlOk && nameOk;
+  // One plain-English reason the Add button is disabled — shown next to it
+  // so users never stare at a grey button wondering why.
+  const disabledReason: string | null = isCustomValid
+    ? null
+    : placeholderStillPresent
+      ? null // the template hint below the URL field already explains this
+      : !trimmedUrl
+        ? 'Enter a web address to continue.'
+        : normalizedUrl === null
+          ? 'That doesn’t look like a web address — try something like crm.yourcompany.com'
+          : !customNameTrimmed
+            ? 'Give it a display name.'
+            : 'Display name must be 40 characters or fewer.';
 
   const handleAddCustom = (): void => {
-    if (!isCustomValid) return;
-    const url = trimmedUrl;
+    if (!isCustomValid || !normalizedUrl) return;
+    const url = normalizedUrl;
     if (templateSource) {
       // Template entries inherit metadata from the catalog source so the
       // resulting service is indistinguishable from a one-click catalog add,
@@ -375,7 +401,12 @@ export function AddAppModal(): JSX.Element | null {
               )}
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="mt-6 flex items-center justify-end gap-3">
+              {disabledReason && (
+                <span className="mr-auto text-[12px] text-muted leading-snug">
+                  {disabledReason}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => {
