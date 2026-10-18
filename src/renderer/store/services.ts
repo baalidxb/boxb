@@ -68,6 +68,9 @@ export interface Service {
   // entry at addService time. Custom URLs default to 'aggressive' since we
   // don't know the use case (user override is Phase 8).
   hibernation: HibernationMode;
+  // v0.2.2: per-service page zoom factor (1 = 100%). Optional so services
+  // persisted by older versions load unchanged. Applied by ServiceWebView.
+  zoom?: number;
 }
 
 type NewServiceInput = Omit<
@@ -149,6 +152,12 @@ interface ServicesState {
   addService: (svc: NewServiceInput) => string;
   removeService: (id: string) => void;
   renameService: (id: string, name: string) => void;
+  // v0.2.2: per-service zoom factor (persisted + broadcast).
+  setServiceZoom: (id: string, zoom: number) => void;
+  // v0.2.2: drag-to-reorder within the service's own workspace.
+  // `toIndex` is the drop slot in that workspace's visible list, counted
+  // BEFORE the dragged item is removed (0 = top, length = bottom).
+  moveService: (id: string, toIndex: number) => void;
   setActiveService: (id: string | null) => void;
   hibernateService: (id: string) => void;
   wakeService: (id: string) => void;
@@ -359,6 +368,43 @@ export const useServicesStore = create<ServicesState>()(
               : s
           )
         }));
+        const s = get();
+        broadcastGlobals({ workspaces: s.workspaces, services: s.services });
+      },
+
+      setServiceZoom: (id, zoom) => {
+        if (!Number.isFinite(zoom) || zoom <= 0) return;
+        const current = get().services.find((s) => s.id === id);
+        if (!current || (current.zoom ?? 1) === zoom) return;
+        set((state) => ({
+          services: state.services.map((s) => (s.id === id ? { ...s, zoom } : s))
+        }));
+        const s = get();
+        broadcastGlobals({ workspaces: s.workspaces, services: s.services });
+      },
+
+      moveService: (id, toIndex) => {
+        const state = get();
+        const moving = state.services.find((s) => s.id === id);
+        if (!moving) return;
+        const wsId = moving.workspaceId;
+        // The workspace's services in their current sidebar order.
+        const visible = state.services.filter((s) => s.workspaceId === wsId);
+        const from = visible.findIndex((s) => s.id === id);
+        if (from < 0) return;
+        let to = Math.max(0, Math.min(toIndex, visible.length));
+        if (to > from) to -= 1; // account for the removed item
+        if (to === from) return;
+        const reordered = [...visible];
+        reordered.splice(from, 1);
+        reordered.splice(to, 0, moving);
+        // Write the new order back into the workspace's slots in the global
+        // array; services of other workspaces keep their exact positions.
+        let k = 0;
+        const next = state.services.map((s) =>
+          s.workspaceId === wsId ? reordered[k++]! : s
+        );
+        set({ services: next });
         const s = get();
         broadcastGlobals({ workspaces: s.workspaces, services: s.services });
       },

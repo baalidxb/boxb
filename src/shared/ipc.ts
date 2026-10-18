@@ -200,6 +200,15 @@ export const IPC = Object.freeze({
     // event details regardless — AI text is an enhancement.
     generateBrief: 'calendar:generate-brief'
   },
+  zoom: {
+    // v0.2.2: main → host renderer. Ctrl+= / Ctrl+- / Ctrl+0 (or Ctrl+wheel)
+    // was pressed. Main intercepts it in before-input-event (which also
+    // blocks the hidden default menu from zooming the BoxB UI itself) and
+    // forwards the intent. Payload: { webContentsId: number | null,
+    // direction: 'in' | 'out' | 'reset' }. webContentsId is the webview the
+    // keys came from; null means the host window had focus → active service.
+    request: 'zoom:request'
+  },
   bridge: {
     // Phase 9.10 (Context Bridge): main → host renderer. The user picked
     // "Ask AI about selection" from a right-click menu in any webview (or

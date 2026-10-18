@@ -67,6 +67,9 @@ export function ServiceIcon({ service, active }: ServiceIconProps): JSX.Element 
             <img
               src={service.iconUrl}
               alt={service.name}
+              // v0.2.2: the tile wrapper is what drags; a native image drag
+              // would hijack it.
+              draggable={false}
               className="w-7 h-7"
               onError={() => setImgError(true)}
             />

@@ -2,6 +2,7 @@ import { useServicesStore } from '../store/services';
 import { useManagedStore } from '../store/managed';
 import { useOnboardingStore } from '../store/onboarding';
 import { reloadActiveWebview } from '../lib/webview-controller';
+import { DEFAULT_ZOOM, zoomPercent } from '../utils/zoom';
 import { GearIcon, QuestionIcon, RefreshIcon } from './Icons';
 
 export function TopBar(): JSX.Element {
@@ -13,7 +14,10 @@ export function TopBar(): JSX.Element {
   const managedConfigName = useManagedStore((s) => s.configName);
   const managedHydrated = useManagedStore((s) => s.hydrated);
   const openHelp = useOnboardingStore((s) => s.openHelp);
+  const setServiceZoom = useServicesStore((s) => s.setServiceZoom);
   const active = services.find((s) => s.id === activeServiceId);
+  const activeZoom = active?.zoom ?? DEFAULT_ZOOM;
+  const showZoomBadge = !!active && Math.abs(activeZoom - DEFAULT_ZOOM) > 0.001;
   const lockedWs = lockedWorkspaceId
     ? workspaces.find((w) => w.id === lockedWorkspaceId) ?? null
     : null;
@@ -58,6 +62,24 @@ export function TopBar(): JSX.Element {
     <header className="h-11 w-full shrink-0 bg-surface border-b-[0.5px] border-b-[#1A1A1A] flex items-center justify-between pl-4 pr-4">
       <div className="text-sm font-medium truncate">{title}</div>
       <div className="flex items-center gap-3">
+        {/* v0.2.2: like Chrome's zoom indicator — only visible when the
+            active service isn't at 100%. Click resets. */}
+        {showZoomBadge && active && (
+          <button
+            type="button"
+            onClick={() => setServiceZoom(active.id, DEFAULT_ZOOM)}
+            title="Zoom — click to reset to 100% (Ctrl+0)"
+            aria-label={`Zoom ${zoomPercent(activeZoom)}%, click to reset`}
+            className={[
+              'px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums',
+              'text-accent bg-accent/10 border-[0.5px] border-accent/40',
+              'transition-colors duration-150 hover:bg-accent/20',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+            ].join(' ')}
+          >
+            {zoomPercent(activeZoom)}%
+          </button>
+        )}
         {showManagedPill && (
           <div
             // Subtle gold pill with leading dot. Communicates "this BoxB

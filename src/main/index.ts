@@ -19,6 +19,7 @@ import { initReminders, registerRemindersIpc } from './reminders';
 import { initCalendar, registerCalendarIpc } from './calendar';
 import { registerBridgeIpc } from './bridge-ai';
 import { sweepOrphanPartitions } from './partition-cleanup';
+import { initZoomShortcuts } from './zoom';
 import { IPC } from '@shared/ipc';
 
 // AUMID is harmless to set even though we no longer rely on Windows toast
@@ -52,6 +53,10 @@ if (!gotLock) {
     // processes can survive after BoxB closes.
     killAllPtys('app-before-quit');
   });
+
+  // v0.2.2: Ctrl+= / Ctrl+- / Ctrl+0 / Ctrl+wheel → per-service zoom.
+  // Registered before whenReady so no webContents is missed.
+  initZoomShortcuts();
 
   // Web contents lifecycle instrumentation. Catches any webContents (host
   // BrowserWindow, webviews, popups). Registered before whenReady so the

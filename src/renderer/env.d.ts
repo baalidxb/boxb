@@ -194,6 +194,14 @@ declare global {
         ) => Promise<{ ok: boolean; text?: string; error?: string }>;
         onOpenBrief: (handler: (event: CalendarEvent) => void) => () => void;
       };
+      zoom: {
+        onRequest: (
+          handler: (payload: {
+            webContentsId: number | null;
+            direction: 'in' | 'out' | 'reset';
+          }) => void
+        ) => () => void;
+      };
       bridge: {
         onOpen: (handler: (payload: { text: string }) => void) => () => void;
         run: (payload: {

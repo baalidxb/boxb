@@ -6,7 +6,9 @@ import {
   type Service
 } from '../store/services';
 import { setActiveReloader } from '../lib/webview-controller';
+import { registerWebview, unregisterWebview } from '../lib/webview-registry';
 import { parseUnreadCount } from '../utils/parseUnreadCount';
+import { DEFAULT_ZOOM } from '../utils/zoom';
 
 interface ServiceWebViewProps {
   service: Service;
@@ -44,6 +46,11 @@ function ServiceWebViewInner({ service, isActive }: InnerProps): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [preloadPath, setPreloadPath] = useState<string | null>(null);
   const setUnreadCount = useServicesStore((s) => s.setUnreadCount);
+  // v0.2.2: latest zoom for this service, readable from listeners without
+  // re-binding them. Chromium keeps zoom per host, so it's re-applied on
+  // dom-ready and after navigations (e.g. a login redirect to another host).
+  const zoomRef = useRef<number>(service.zoom ?? DEFAULT_ZOOM);
+  zoomRef.current = service.zoom ?? DEFAULT_ZOOM;
 
   useEffect(() => {
     let cancelled = false;
@@ -108,15 +115,25 @@ function ServiceWebViewInner({ service, isActive }: InnerProps): JSX.Element {
         setTimeout(() => setUnreadCount(service.id, newCount), 0);
       }
     };
+    const applyZoom = (): void => {
+      try {
+        el.setZoomFactor(zoomRef.current);
+      } catch {
+        // webview not attached yet — the next dom-ready re-applies
+      }
+    };
+    const onNavigate = (): void => applyZoom();
     const onDomReady = (): void => {
       console.log(`${tag} dom-ready partition=${service.partition}`);
       registerPartitionOnce(service.partition);
+      applyZoom();
       // Register this webview with the main-side hibernation tracker.
       // dom-ready is the right moment: the inner WebContents now exists and
       // has an id we can address.
       try {
         const wcId = el.getWebContentsId();
         wcIdRef.current = wcId;
+        registerWebview(wcId, service.id);
         // Read the LIVE active state from the store rather than the closed-
         // over isActive prop; this listener was created when isActive may
         // have been false even though the user already clicked the tile.
@@ -138,18 +155,21 @@ function ServiceWebViewInner({ service, isActive }: InnerProps): JSX.Element {
     el.addEventListener('did-fail-load', onFailLoad);
     el.addEventListener('page-title-updated', onTitleUpdate);
     el.addEventListener('dom-ready', onDomReady);
+    el.addEventListener('did-navigate', onNavigate);
 
     return () => {
       el.removeEventListener('did-finish-load', onFinishLoad);
       el.removeEventListener('did-fail-load', onFailLoad);
       el.removeEventListener('page-title-updated', onTitleUpdate);
       el.removeEventListener('dom-ready', onDomReady);
+      el.removeEventListener('did-navigate', onNavigate);
       // Tell main this webview is going away (unmount on aggressive
       // hibernation, service removal, or window close). Main already
       // listens for 'destroyed' on the WebContents itself, but emitting
       // unregister on cleanup gives us a faster, deterministic signal.
       const wcId = wcIdRef.current;
       if (wcId !== null) {
+        unregisterWebview(wcId);
         try {
           window.boxb.hibernation.unregister({ wcId });
         } catch {
@@ -166,6 +186,19 @@ function ServiceWebViewInner({ service, isActive }: InnerProps): JSX.Element {
     preloadPath,
     setUnreadCount
   ]);
+
+  // v0.2.2: zoom changed (keys, wheel, badge reset, or another window's
+  // broadcast) → apply to the live page. Before dom-ready there's nothing to
+  // apply to; onDomReady picks up zoomRef then.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || wcIdRef.current === null) return;
+    try {
+      el.setZoomFactor(service.zoom ?? DEFAULT_ZOOM);
+    } catch {
+      // best-effort
+    }
+  }, [service.zoom]);
 
   // Active-state effect: tells main when this webview becomes active /
   // inactive. The main-side handler bumps lastActiveAt on activation and

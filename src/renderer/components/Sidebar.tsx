@@ -44,6 +44,19 @@ export function Sidebar(): JSX.Element {
   const overdueCount = reminders.filter((r) => r.dueAt <= now).length;
 
   const calendarOpen = useCalendarStore((s) => s.panelOpen);
+  const moveService = useServicesStore((s) => s.moveService);
+
+  // v0.2.2: drag-to-reorder. dragId = tile being dragged (null when the drag
+  // didn't start in this list, e.g. a file from Explorer — those are
+  // ignored). dropIndex = insertion slot, 0..visibleServices.length.
+  // Disabled in managed installs: the layout belongs to the admin.
+  const canReorder = !isManaged;
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const endDrag = (): void => {
+    setDragId(null);
+    setDropIndex(null);
+  };
 
   // The overlay panels (Security / Reminders / Calendar) are mutually
   // exclusive — opening one closes the others so they never stack invisibly.
@@ -209,10 +222,60 @@ export function Sidebar(): JSX.Element {
         </>
       )}
 
-      <div className="overflow-y-auto flex flex-col items-center pt-[12px] gap-[10px] flex-1 min-h-0">
-        {visibleServices.map((svc) => (
-          <ServiceIcon key={svc.id} service={svc} active={svc.id === activeServiceId} />
-        ))}
+      <div
+        className="overflow-y-auto flex flex-col items-center pt-[12px] pb-[12px] gap-[10px] flex-1 min-h-0"
+        onDragOver={(e) => {
+          if (!dragId) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          // Empty space below the last tile → drop at the very bottom.
+          if (e.target === e.currentTarget && dropIndex !== visibleServices.length) {
+            setDropIndex(visibleServices.length);
+          }
+        }}
+        onDrop={(e) => {
+          if (!dragId) return;
+          e.preventDefault();
+          if (dropIndex !== null) moveService(dragId, dropIndex);
+          endDrag();
+        }}
+      >
+        {visibleServices.map((svc, i) => {
+          const isLast = i === visibleServices.length - 1;
+          const lineAbove = dragId !== null && dropIndex === i;
+          const lineBelow = dragId !== null && isLast && dropIndex === visibleServices.length;
+          return (
+            <div
+              key={svc.id}
+              draggable={canReorder}
+              onDragStart={(e) => {
+                setDragId(svc.id);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', svc.id);
+              }}
+              onDragOver={(e) => {
+                if (!dragId) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const idx = e.clientY < rect.top + rect.height / 2 ? i : i + 1;
+                if (idx !== dropIndex) setDropIndex(idx);
+              }}
+              onDragEnd={endDrag}
+              className={[
+                'relative',
+                dragId === svc.id ? 'opacity-40' : '',
+                canReorder ? 'cursor-grab active:cursor-grabbing' : ''
+              ].join(' ')}
+            >
+              {lineAbove && (
+                <span className="pointer-events-none absolute -top-[6px] left-1/2 -translate-x-1/2 h-[2px] w-11 rounded-full bg-accent shadow-[0_0_8px_rgba(212,175,55,0.8)]" />
+              )}
+              <ServiceIcon service={svc} active={svc.id === activeServiceId} />
+              {lineBelow && (
+                <span className="pointer-events-none absolute -bottom-[6px] left-1/2 -translate-x-1/2 h-[2px] w-11 rounded-full bg-accent shadow-[0_0_8px_rgba(212,175,55,0.8)]" />
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div className="flex flex-col items-center pb-[14px] gap-2">

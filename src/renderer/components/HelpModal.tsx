@@ -24,6 +24,9 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     items: [
       { keys: 'Ctrl+K', desc: 'Open the command bar' },
       { keys: 'Ctrl+1 – 9', desc: 'Jump to a service by position' },
+      { keys: 'Ctrl+ / Ctrl−', desc: 'Zoom the current service in / out (also Ctrl+wheel)' },
+      { keys: 'Ctrl+0', desc: 'Reset zoom to 100%' },
+      { keys: 'Drag a tile', desc: 'Reorder services in the sidebar' },
       { keys: 'Esc', desc: 'Close menus, modals & overlays' }
     ]
   },

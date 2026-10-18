@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { EmptyState } from './components/EmptyState';
@@ -36,6 +36,8 @@ import { useRemindersStore } from './store/reminders';
 import { useCalendarStore } from './store/calendar';
 import { useBridgeStore } from './store/bridge';
 import { catalog } from '../catalog/apps';
+import { serviceIdForWebContents } from './lib/webview-registry';
+import { nextZoom } from './utils/zoom';
 import type { CommandBarAction, ManagedConfigFile } from '@shared/types';
 
 export default function App(): JSX.Element {
@@ -200,6 +202,26 @@ export default function App(): JSX.Element {
   useEffect(() => {
     return window.boxb.calendar.onOpenBrief((event) => {
       useCalendarStore.getState().openBrief(event);
+    });
+  }, []);
+
+  // v0.2.2: zoom gesture from main (Ctrl+= / Ctrl+- / Ctrl+0 / Ctrl+wheel).
+  // webContentsId → the page it came from; null → host had focus, so the
+  // active service in this window.
+  useEffect(() => {
+    return window.boxb.zoom.onRequest(({ webContentsId, direction }) => {
+      const state = useServicesStore.getState();
+      let serviceId: string | null = null;
+      if (typeof webContentsId === 'number') {
+        serviceId = serviceIdForWebContents(webContentsId);
+      } else {
+        const active = state.services.find((s) => s.id === state.activeServiceId);
+        if (active && active.workspaceId === state.activeWorkspaceId) serviceId = active.id;
+      }
+      if (!serviceId) return;
+      const svc = state.services.find((s) => s.id === serviceId);
+      if (!svc) return;
+      state.setServiceZoom(svc.id, nextZoom(svc.zoom, direction));
     });
   }, []);
 
@@ -619,6 +641,18 @@ export default function App(): JSX.Element {
     return unsubscribe;
   }, []);
 
+  // v0.2.2: render pages in a FIXED order (when they were added), not
+  // sidebar order. Moving a <webview> element in the DOM makes Electron
+  // reload it — without this, dragging a sidebar icon would reload
+  // WhatsApp. Pages are stacked absolutely, so DOM order is invisible.
+  const servicesInMountOrder = useMemo(
+    () =>
+      [...services].sort(
+        (a, b) => a.addedAt - b.addedAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+      ),
+    [services]
+  );
+
   const activeService = services.find((s) => s.id === activeServiceId);
   const showEmpty =
     !activeService || activeService.workspaceId !== activeWorkspaceId;
@@ -703,7 +737,7 @@ export default function App(): JSX.Element {
             opens. min-h-0 lets flex-1 actually shrink below the natural
             content size (here: zero, since children are absolute). */}
         <div className="flex-1 min-h-0 relative">
-          {services.map((s) => (
+          {servicesInMountOrder.map((s) => (
             <ServiceWebView
               key={s.id}
               service={s}

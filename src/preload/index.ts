@@ -282,6 +282,21 @@ const api = {
       return () => ipcRenderer.removeListener(IPC.calendar.openBrief, wrapped);
     }
   },
+  zoom: {
+    onRequest: (
+      handler: (payload: {
+        webContentsId: number | null;
+        direction: 'in' | 'out' | 'reset';
+      }) => void
+    ): (() => void) => {
+      const wrapped = (
+        _e: IpcRendererEvent,
+        payload: { webContentsId: number | null; direction: 'in' | 'out' | 'reset' }
+      ): void => handler(payload);
+      ipcRenderer.on(IPC.zoom.request, wrapped);
+      return () => ipcRenderer.removeListener(IPC.zoom.request, wrapped);
+    }
+  },
   bridge: {
     onOpen: (handler: (payload: { text: string }) => void): (() => void) => {
       const wrapped = (_e: IpcRendererEvent, payload: { text: string }): void =>
