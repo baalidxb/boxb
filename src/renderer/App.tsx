@@ -205,6 +205,22 @@ export default function App(): JSX.Element {
     });
   }, []);
 
+  // v0.2.3: belt-and-braces for the "service turns blue" report. When focus
+  // moves into a service page, the host window blurs — drop any leftover
+  // host selection so it can never stay painted over the webview.
+  useEffect(() => {
+    const clear = (): void => {
+      try {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && !sel.isCollapsed) sel.removeAllRanges();
+      } catch {
+        // best effort
+      }
+    };
+    window.addEventListener('blur', clear);
+    return () => window.removeEventListener('blur', clear);
+  }, []);
+
   // v0.2.2: zoom gesture from main (Ctrl+= / Ctrl+- / Ctrl+0 / Ctrl+wheel).
   // webContentsId → the page it came from; null → host had focus, so the
   // active service in this window.

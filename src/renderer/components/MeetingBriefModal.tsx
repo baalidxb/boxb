@@ -108,7 +108,7 @@ export function MeetingBriefModal(): JSX.Element | null {
               <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">
                 Details
               </h2>
-              <p className="text-[13px] text-fg/90 leading-relaxed whitespace-pre-wrap break-words max-h-[140px] overflow-y-auto">
+              <p className="text-[13px] text-fg/90 leading-relaxed whitespace-pre-wrap break-words max-h-[140px] overflow-y-auto select-text">
                 {briefEvent.description}
               </p>
             </div>
@@ -125,7 +125,7 @@ export function MeetingBriefModal(): JSX.Element | null {
               </div>
             )}
             {!briefLoading && briefText && (
-              <p className="text-[13px] text-fg leading-relaxed whitespace-pre-wrap break-words">
+              <p className="text-[13px] text-fg leading-relaxed whitespace-pre-wrap break-words select-text">
                 {briefText}
               </p>
             )}

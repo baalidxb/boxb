@@ -12,6 +12,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 const TOAST_SHOW = 'toast:show';
 const TOAST_CLICK = 'toast:click';
 const TOAST_DISMISSED = 'toast:dismissed';
+const TOAST_INTERACTIVE = 'toast:interactive';
 const UPDATE_RESTART_NOW = 'update:restart-now';
 const UPDATE_DISMISS = 'update:dismiss';
 const REMINDER_TOAST_DONE = 'reminders:toast-done';
@@ -36,6 +37,9 @@ contextBridge.exposeInMainWorld('toastApi', {
   },
   dismissed: (id: string): void => {
     ipcRenderer.send(TOAST_DISMISSED, { id });
+  },
+  setInteractive: (on: boolean): void => {
+    ipcRenderer.send(TOAST_INTERACTIVE, { on });
   },
   updateRestart: (id: string): void => {
     ipcRenderer.send(UPDATE_RESTART_NOW, { id });

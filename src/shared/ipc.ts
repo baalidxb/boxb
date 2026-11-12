@@ -34,7 +34,11 @@ export const IPC = Object.freeze({
     click: 'toast:click',
     // Toast renderer → main: toast finished its dismiss animation; main can
     // hide the window once the stack is empty.
-    dismissed: 'toast:dismissed'
+    dismissed: 'toast:dismissed',
+    // Toast renderer → main (v0.2.3): pointer entered/left a toast. Main
+    // toggles setIgnoreMouseEvents so only the toasts themselves catch
+    // clicks; the transparent rest of the window passes them through.
+    interactive: 'toast:interactive'
   },
   update: {
     // Toast renderer → main: user clicked "Restart now" on the update toast.

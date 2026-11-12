@@ -42,6 +42,9 @@ let toastWindow: BrowserWindow | null = null;
 let rendererReady = false;
 const pendingShows: ShowPayload[] = [];
 const callbacks = new Map<string, ShowOptions>();
+// v0.2.3: ids of every toast currently on screen (all kinds). Drives when
+// the window hides.
+const liveIds = new Set<string>();
 
 interface ShowPayload {
   id: string;
@@ -100,6 +103,31 @@ const TOAST_HTML = `<!doctype html>
     transition: transform 200ms ease-out, opacity 200ms ease-out, border-color 120ms ease-out;
     cursor: pointer;
     overflow: hidden;
+    position: relative;
+    padding-right: 30px;
+  }
+  /* v0.2.3: every toast can be closed (team report: sticky toasts couldn't
+     be dismissed). */
+  .toast .close {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #8A8A8A;
+    font-size: 16px;
+    line-height: 20px;
+    text-align: center;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .toast .close:hover {
+    color: #FFFFFF;
+    background: #2A2A2A;
   }
   .toast.in {
     transform: translateX(0);
@@ -235,6 +263,11 @@ const TOAST_HTML = `<!doctype html>
       entry.el.classList.add('out');
       setTimeout(function () {
         if (entry.el.parentNode) entry.el.parentNode.removeChild(entry.el);
+        // The toast that just left may have been under the mouse; if no
+        // toast is hovered now, hand clicks back to whatever is underneath.
+        if (!document.querySelector('.toast:hover')) {
+          try { window.toastApi.setInteractive(false); } catch (e) {}
+        }
         try { window.toastApi.dismissed(id); } catch (e) {}
       }, 180);
     }
@@ -280,7 +313,27 @@ const TOAST_HTML = `<!doctype html>
           + '<button type="button" class="btn btn-primary btn-done">Done</button>'
           + '</div>';
       }
-      el.innerHTML = iconsHtml + titleHtml + timeHtml + bodyHtml + actionsHtml;
+      var closeHtml = '<button type="button" class="close" aria-label="Close">&times;</button>';
+      el.innerHTML = iconsHtml + titleHtml + timeHtml + bodyHtml + actionsHtml + closeHtml;
+
+      // v0.2.3: the window ignores the mouse except while the pointer is
+      // over a toast, so the empty transparent area never blocks clicks on
+      // the apps underneath.
+      el.addEventListener('mouseenter', function () {
+        try { window.toastApi.setInteractive(true); } catch (e) {}
+      });
+      el.addEventListener('mouseleave', function () {
+        try { window.toastApi.setInteractive(false); } catch (e) {}
+      });
+      var closeBtn = el.querySelector('.close');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          // Closing the update toast means "Later".
+          if (isAction) { try { window.toastApi.updateDismiss(payload.id); } catch (e) {} }
+          dismiss(payload.id);
+        });
+      }
 
       if (isReminder) {
         // Reminder toasts: buttons handle Done/Snooze; clicking anywhere
@@ -408,6 +461,12 @@ export function initToastWindow(): void {
   // briefly steals focus; setVisibleOnAllWorkspaces helps the window
   // stay-put across virtual desktops.
   toastWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // v0.2.3: click-through by default. The window is 400x560 but toasts only
+  // fill a small part; without this the transparent rest of it swallowed
+  // every click in the bottom-right of the screen (team report). forward:true
+  // still delivers mouse-move, so the toast's mouseenter can switch
+  // interactivity back on while the pointer is over a toast.
+  toastWindow.setIgnoreMouseEvents(true, { forward: true });
 
   toastWindow.webContents.on('did-finish-load', () => {
     rendererReady = true;
@@ -430,6 +489,7 @@ export function initToastWindow(): void {
     toastWindow = null;
     rendererReady = false;
     callbacks.clear();
+    liveIds.clear();
     pendingShows.length = 0;
   });
 
@@ -451,12 +511,22 @@ export function initToastWindow(): void {
     }
   });
 
+  ipcMain.on(IPC.toast.interactive, (_event, payload: { on?: unknown }) => {
+    if (!toastWindow || toastWindow.isDestroyed()) return;
+    const on = payload?.on === true;
+    toastWindow.setIgnoreMouseEvents(!on, { forward: true });
+  });
+
   ipcMain.on(IPC.toast.dismissed, (_event, payload: { id?: unknown }) => {
     const id = String(payload?.id ?? '');
     if (!id) return;
     callbacks.delete(id);
-    dlog('TOAST:dismissed', { id, remaining: callbacks.size });
-    if (callbacks.size === 0 && toastWindow && toastWindow.isVisible()) {
+    liveIds.delete(id);
+    dlog('TOAST:dismissed', { id, remaining: liveIds.size });
+    // v0.2.3: hide based on every visible toast (update toasts never had a
+    // callback entry, so the old check could hide the window under them).
+    if (liveIds.size === 0 && toastWindow && toastWindow.isVisible()) {
+      toastWindow.setIgnoreMouseEvents(true, { forward: true });
       toastWindow.hide();
       dlog('TOAST:window-hidden');
     }
@@ -465,6 +535,7 @@ export function initToastWindow(): void {
 
 function sendToRenderer(payload: ShowPayload): void {
   if (!toastWindow || toastWindow.isDestroyed()) return;
+  liveIds.add(payload.id);
   if (!toastWindow.isVisible()) {
     // showInactive avoids stealing focus from whatever the user was doing.
     toastWindow.showInactive();

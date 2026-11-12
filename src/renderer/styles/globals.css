@@ -20,6 +20,23 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* v0.2.3: BoxB chrome behaves like an app, not a web page. Without this,
+     Ctrl+A on the host or a click-drag across the sidebar selected the whole
+     window, and Chromium painted the selection over the <webview> too —
+     the whole service turned blue (team report). Selection INSIDE services
+     is a separate document and is unaffected. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Places where copying text from BoxB's own UI is useful stay selectable. */
+input,
+textarea,
+[contenteditable='true'],
+.select-text,
+.xterm {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* Tab strip overflow — thin scrollbar so a 10-tab row doesn't get a fat
